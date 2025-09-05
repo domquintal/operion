@@ -14,7 +14,7 @@ if (!(Test-Path $py)) {
   & py -3 -m venv $venv
 }
 
-# Install deps if needed
+# Install deps
 Write-Host "[SETUP] Installing requirements..."
 & $pip install -r $req
 
