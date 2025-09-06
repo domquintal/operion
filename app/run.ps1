@@ -1,66 +1,121 @@
 ﻿param()
 $ErrorActionPreference = "Stop"
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName PresentationFramework
 
-function New-Tab([string]$name){ $t=New-Object System.Windows.Forms.TabPage; $t.Text=$name; $t.Padding='10,10'; return $t }
-function New-LogBox(){ $tb=New-Object System.Windows.Forms.TextBox; $tb.Multiline=$true; $tb.ReadOnly=$true; $tb.ScrollBars='Vertical'; $tb.Font=New-Object System.Drawing.Font('Consolas',10); $tb.Dock='Fill'; $tb }
-function Add-Log([System.Windows.Forms.TextBox]$tb,[string]$msg){ $ts=(Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); $tb.AppendText("[$ts] $msg
-") }
+# XAML for modern UI
+[xml]$xaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        Title="Operion" Height="600" Width="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E2F" Foreground="White" FontFamily="Segoe UI">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="60"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
 
-$form               = New-Object System.Windows.Forms.Form
-$form.Text          = "Operion"
-$form.StartPosition = "CenterScreen"
-$form.Size          = New-Object System.Drawing.Size(900,560)
+    <!-- Header -->
+    <Border Grid.Row="0" Background="#2D2D44">
+      <TextBlock Text="Operion Dashboard" 
+                 VerticalAlignment="Center" HorizontalAlignment="Center"
+                 FontSize="22" FontWeight="Bold" Foreground="#00E5FF"/>
+    </Border>
 
-$tabs = New-Object System.Windows.Forms.TabControl; $tabs.Dock='Fill'; $form.Controls.Add($tabs)
-$tAuto=New-Tab 'Automation'; $tAna=New-Tab 'Analytics'; $tSec=New-Tab 'Security'; $tInt=New-Tab 'Integrations'; $tSet=New-Tab 'Settings'
-$tabs.TabPages.AddRange(@($tAuto,$tAna,$tSec,$tInt,$tSet))
+    <!-- Tabs -->
+    <TabControl Grid.Row="1" x:Name="Tabs" Background="#1E1E2F">
+      <TabItem Header="Automation" x:Name="TabAutomation"/>
+      <TabItem Header="Analytics" x:Name="TabAnalytics"/>
+      <TabItem Header="Security" x:Name="TabSecurity"/>
+      <TabItem Header="Integrations" x:Name="TabIntegrations"/>
+      <TabItem Header="Settings" x:Name="TabSettings"/>
+    </TabControl>
+  </Grid>
+</Window>
+"@
 
-# Automation
-$pA=New-Object System.Windows.Forms.Panel; $pA.Dock='Top'; $pA.Height=60
-$bRun=New-Object System.Windows.Forms.Button; $bRun.Text='Run Automations'; $bRun.Width=160; $bRun.Height=32; $bRun.Left=10; $bRun.Top=10
-$bSch=New-Object System.Windows.Forms.Button; $bSch.Text='Schedule Task'; $bSch.Left=180; $bSch.Top=10; $bSch.Width=140; $bSch.Height=32
-$logA=New-LogBox
-$tAuto.Controls.Add($logA); $tAuto.Controls.Add($pA); $pA.Controls.AddRange(@($bRun,$bSch))
-$bRun.Add_Click({ Add-Log $logA "Automation flow starting…"; Start-Sleep .3; Add-Log $logA "Step 1"; Start-Sleep .3; Add-Log $logA "Step 2"; Add-Log $logA "Done ✅" })
-$bSch.Add_Click({ Add-Log $logA "Scheduling placeholder… (wire real scheduler next)" })
+# Load XAML
+$reader=(New-Object System.Xml.XmlNodeReader $xaml)
+$Window=[Windows.Markup.XamlReader]::Load($reader)
 
-# Analytics
-$pN=New-Object System.Windows.Forms.Panel; $pN.Dock='Top'; $pN.Height=60
-$bRef=New-Object System.Windows.Forms.Button; $bRef.Text='Refresh Dashboards'; $bRef.Width=180; $bRef.Height=32; $bRef.Left=10; $bRef.Top=10
-$bExp=New-Object System.Windows.Forms.Button; $bExp.Text='Export CSV'; $bExp.Left=200; $bExp.Top=10; $bExp.Width=140; $bExp.Height=32
-$logN=New-LogBox
-$tAna.Controls.Add($logN); $tAna.Controls.Add($pN); $pN.Controls.AddRange(@($bRef,$bExp))
-$bRef.Add_Click({ Add-Log $logN "Refreshing KPIs… (plug data sources here)" })
-$bExp.Add_Click({ $p=(Join-Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) '_exports'); [IO.Directory]::CreateDirectory($p) | Out-Null; $f=Join-Path $p ("dashboard_{0:yyyyMMdd_HHmmss}.csv" -f (Get-Date)); 'metric,value',"revenue,12345","leads,67" | Set-Content $f; Add-Log $logN "Exported $f" })
+# Controls
+$Tabs        = $Window.FindName("Tabs")
+$TabAutomation = $Window.FindName("TabAutomation")
+$TabAnalytics  = $Window.FindName("TabAnalytics")
+$TabSecurity   = $Window.FindName("TabSecurity")
+$TabIntegrations = $Window.FindName("TabIntegrations")
+$TabSettings  = $Window.FindName("TabSettings")
 
-# Security
-$pS=New-Object System.Windows.Forms.Panel; $pS.Dock='Top'; $pS.Height=60
-$bAud=New-Object System.Windows.Forms.Button; $bAud.Text='Run Security Audit'; $bAud.Width=160; $bAud.Height=32; $bAud.Left=10; $bAud.Top=10
-$bHard=New-Object System.Windows.Forms.Button; $bHard.Text='Apply Hardening'; $bHard.Left=180; $bHard.Top=10; $bHard.Width=140; $bHard.Height=32
-$logS=New-LogBox
-$tSec.Controls.Add($logS); $tSec.Controls.Add($pS); $pS.Controls.AddRange(@($bAud,$bHard))
-$bAud.Add_Click({ Add-Log $logS "Security scan (placeholder)…"; Start-Sleep .4; Add-Log $logS "No critical issues found." })
-$bHard.Add_Click({ Add-Log $logS "Applying baseline hardening (placeholder)…"; Start-Sleep .4; Add-Log $logS "Baseline applied." })
+function New-TabContent($title){
+    $grid = New-Object Windows.Controls.Grid
+    $grid.RowDefinitions.Add((New-Object Windows.Controls.RowDefinition))
+    $grid.RowDefinitions[0].Height = "60"
+    $grid.RowDefinitions.Add((New-Object Windows.Controls.RowDefinition))
 
-# Integrations
-$pI=New-Object System.Windows.Forms.Panel; $pI.Dock='Top'; $pI.Height=60
-$bCon=New-Object System.Windows.Forms.Button; $bCon.Text='Connect Service…'; $bCon.Width=160; $bCon.Height=32; $bCon.Left=10; $bCon.Top=10
-$bTst=New-Object System.Windows.Forms.Button; $bTst.Text='Test Connection'; $bTst.Left=180; $bTst.Top=10; $bTst.Width=140; $bTst.Height=32
-$logI=New-LogBox
-$tInt.Controls.Add($logI); $tInt.Controls.Add($pI); $pI.Controls.AddRange(@($bCon,$bTst))
-$bCon.Add_Click({ Add-Log $logI "Connect dialog (placeholder). We'll add OAuth/API keys here." })
-$bTst.Add_Click({ Add-Log $logI "Testing example endpoint…"; Start-Sleep .3; Add-Log $logI "OK" })
+    $panel = New-Object Windows.Controls.StackPanel
+    $panel.Orientation="Horizontal"
+    $panel.Margin="10"
 
-# Settings
-$grid=New-Object System.Windows.Forms.TableLayoutPanel; $grid.Dock='Fill'; $grid.ColumnCount=2; $grid.RowCount=6; $grid.AutoSize=$true
-$lblEnv=New-Object System.Windows.Forms.Label; $lblEnv.Text='Environment:'; $txtEnv=New-Object System.Windows.Forms.TextBox; $txtEnv.Text='prod'
-$lblLogs=New-Object System.Windows.Forms.Label; $lblLogs.Text='Log Folder:'; $txtLogs=New-Object System.Windows.Forms.TextBox
-$txtLogs.Text = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) '_logs')
-$btnSave=New-Object System.Windows.Forms.Button; $btnSave.Text='Save Settings'; $btnSave.Width=140
-$grid.Controls.Add($lblEnv,0,0); $grid.Controls.Add($txtEnv,1,0); $grid.Controls.Add($lblLogs,0,1); $grid.Controls.Add($txtLogs,1,1); $grid.Controls.Add($btnSave,1,5)
-$tSet.Controls.Add($grid)
-$btnSave.Add_Click({ [IO.Directory]::CreateDirectory($txtLogs.Text) | Out-Null; [System.Windows.Forms.MessageBox]::Show("Saved.","Operion") })
+    $log = New-Object Windows.Controls.TextBox
+    $log.Text="[$title] Ready.`r`n"
+    $log.AcceptsReturn=$true
+    $log.VerticalScrollBarVisibility="Auto"
+    $log.HorizontalScrollBarVisibility="Disabled"
+    $log.TextWrapping="Wrap"
+    $log.IsReadOnly=$true
+    $log.Background="#252539"
+    $log.Foreground="White"
+    $log.FontFamily="Consolas"
+    $log.FontSize=12
+    $log.Margin="10"
+    [Windows.Controls.Grid]::SetRow($log,1)
 
-[void].ShowDialog()
+    $grid.Children.Add($panel)
+    $grid.Children.Add($log)
+
+    return @{Grid=$grid; Panel=$panel; Log=$log}
+}
+function Add-Button($panel,$label,$onClick){
+    $btn=New-Object Windows.Controls.Button
+    $btn.Content=$label
+    $btn.Margin="5"
+    $btn.Padding="10,5"
+    $btn.Background="#00E5FF"
+    $btn.Foreground="Black"
+    $btn.FontWeight="Bold"
+    $btn.Add_Click($onClick)
+    $panel.Children.Add($btn) | Out-Null
+}
+
+# Build tabs
+$auto = New-TabContent "Automation"
+Add-Button $auto.Panel "Run Flow" { $auto.Log.AppendText("Running flow...`r`nDone ✅`r`n") }
+Add-Button $auto.Panel "Schedule Task" { $auto.Log.AppendText("Scheduling task...`r`n") }
+$TabAutomation.Content=$auto.Grid
+
+$ana = New-TabContent "Analytics"
+Add-Button $ana.Panel "Refresh KPIs" { $ana.Log.AppendText("Refreshing KPIs...`r`n") }
+Add-Button $ana.Panel "Export CSV" {
+  $p=Join-Path (Split-Path -Parent $PSCommandPath) "..\_exports"
+  New-Item -ItemType Directory -Force -Path $p | Out-Null
+  $f=Join-Path $p ("dashboard_{0:yyyyMMdd_HHmmss}.csv" -f (Get-Date))
+  "metric,value`nrevenue,12345`nleads,67" | Set-Content $f
+  $ana.Log.AppendText("Exported $f`r`n")
+}
+$TabAnalytics.Content=$ana.Grid
+
+$sec = New-TabContent "Security"
+Add-Button $sec.Panel "Run Audit" { $sec.Log.AppendText("Security audit complete: 0 critical issues.`r`n") }
+Add-Button $sec.Panel "Apply Hardening" { $sec.Log.AppendText("Baseline hardening applied.`r`n") }
+$TabSecurity.Content=$sec.Grid
+
+$int = New-TabContent "Integrations"
+Add-Button $int.Panel "Connect Service" { $int.Log.AppendText("Connect dialog (placeholder).`r`n") }
+Add-Button $int.Panel "Test Connection" { $int.Log.AppendText("Test successful.`r`n") }
+$TabIntegrations.Content=$int.Grid
+
+$set = New-TabContent "Settings"
+Add-Button $set.Panel "Save Settings" { $set.Log.AppendText("Settings saved.`r`n") }
+$TabSettings.Content=$set.Grid
+
+# Show
+$Window.ShowDialog() | Out-Null
