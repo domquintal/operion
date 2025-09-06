@@ -3,82 +3,64 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-function New-Tab([string]$name){
-  $tab = New-Object System.Windows.Forms.TabPage
-  $tab.Text = $name
-  $tab.Padding = '10,10'
-  return $tab
-}
-function New-LogBox(){ $tb = New-Object System.Windows.Forms.TextBox; $tb.Multiline=$true; $tb.ReadOnly=$true; $tb.ScrollBars='Vertical'; $tb.Font = New-Object System.Drawing.Font('Consolas',10); $tb.Dock='Fill'; $tb }
-function Add-Log([System.Windows.Forms.TextBox]$tb,[string]$msg){
-  $ts=(Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); $tb.AppendText("[$ts] $msg`r`n")
-}
+function New-Tab([string]$name){ $t=New-Object System.Windows.Forms.TabPage; $t.Text=$name; $t.Padding='10,10'; return $t }
+function New-LogBox(){ $tb=New-Object System.Windows.Forms.TextBox; $tb.Multiline=$true; $tb.ReadOnly=$true; $tb.ScrollBars='Vertical'; $tb.Font=New-Object System.Drawing.Font('Consolas',10); $tb.Dock='Fill'; $tb }
+function Add-Log([System.Windows.Forms.TextBox]$tb,[string]$msg){ $ts=(Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); $tb.AppendText("[$ts] $msg
+") }
 
-# Window
 $form               = New-Object System.Windows.Forms.Form
 $form.Text          = "Operion"
 $form.StartPosition = "CenterScreen"
-$form.Size          = New-Object System.Drawing.Size(900, 560)
+$form.Size          = New-Object System.Drawing.Size(900,560)
 
-$tabs = New-Object System.Windows.Forms.TabControl
-$tabs.Dock='Fill'
-$form.Controls.Add($tabs)
+$tabs = New-Object System.Windows.Forms.TabControl; $tabs.Dock='Fill'; $form.Controls.Add($tabs)
+$tAuto=New-Tab 'Automation'; $tAna=New-Tab 'Analytics'; $tSec=New-Tab 'Security'; $tInt=New-Tab 'Integrations'; $tSet=New-Tab 'Settings'
+$tabs.TabPages.AddRange(@($tAuto,$tAna,$tSec,$tInt,$tSet))
 
-# Tabs
-$tabAutomation   = New-Tab 'Automation'
-$tabAnalytics    = New-Tab 'Analytics'
-$tabSecurity     = New-Tab 'Security'
-$tabIntegrations = New-Tab 'Integrations'
-$tabSettings     = New-Tab 'Settings'
-$tabs.TabPages.AddRange(@($tabAutomation,$tabAnalytics,$tabSecurity,$tabIntegrations,$tabSettings))
+# Automation
+$pA=New-Object System.Windows.Forms.Panel; $pA.Dock='Top'; $pA.Height=60
+$bRun=New-Object System.Windows.Forms.Button; $bRun.Text='Run Automations'; $bRun.Width=160; $bRun.Height=32; $bRun.Left=10; $bRun.Top=10
+$bSch=New-Object System.Windows.Forms.Button; $bSch.Text='Schedule Task'; $bSch.Left=180; $bSch.Top=10; $bSch.Width=140; $bSch.Height=32
+$logA=New-LogBox
+$tAuto.Controls.Add($logA); $tAuto.Controls.Add($pA); $pA.Controls.AddRange(@($bRun,$bSch))
+$bRun.Add_Click({ Add-Log $logA "Automation flow starting…"; Start-Sleep .3; Add-Log $logA "Step 1"; Start-Sleep .3; Add-Log $logA "Step 2"; Add-Log $logA "Done ✅" })
+$bSch.Add_Click({ Add-Log $logA "Scheduling placeholder… (wire real scheduler next)" })
 
-# === Automation ===
-$autoPanel = New-Object System.Windows.Forms.Panel; $autoPanel.Dock='Top'; $autoPanel.Height=60
-$btnRunFlows = New-Object System.Windows.Forms.Button; $btnRunFlows.Text='Run Automations'; $btnRunFlows.Width=160; $btnRunFlows.Height=32; $btnRunFlows.Left=10; $btnRunFlows.Top=10
-$btnSchedule = New-Object System.Windows.Forms.Button; $btnSchedule.Text='Schedule Task'; $btnSchedule.Left=180; $btnSchedule.Top=10; $btnSchedule.Width=140; $btnSchedule.Height=32
-$autoLog = New-LogBox
-$tabAutomation.Controls.Add($autoLog); $tabAutomation.Controls.Add($autoPanel); $autoPanel.Controls.AddRange(@($btnRunFlows,$btnSchedule))
-$btnRunFlows.Add_Click({ Add-Log $autoLog "Automation: running example flow..."; Start-Sleep 0.4; Add-Log $autoLog "Step 1"; Start-Sleep 0.4; Add-Log $autoLog "Step 2"; Add-Log $autoLog "Done ✅" })
-$btnSchedule.Add_Click({ Add-Log $autoLog "Scheduling placeholder task… (wire to real scheduler next)" })
+# Analytics
+$pN=New-Object System.Windows.Forms.Panel; $pN.Dock='Top'; $pN.Height=60
+$bRef=New-Object System.Windows.Forms.Button; $bRef.Text='Refresh Dashboards'; $bRef.Width=180; $bRef.Height=32; $bRef.Left=10; $bRef.Top=10
+$bExp=New-Object System.Windows.Forms.Button; $bExp.Text='Export CSV'; $bExp.Left=200; $bExp.Top=10; $bExp.Width=140; $bExp.Height=32
+$logN=New-LogBox
+$tAna.Controls.Add($logN); $tAna.Controls.Add($pN); $pN.Controls.AddRange(@($bRef,$bExp))
+$bRef.Add_Click({ Add-Log $logN "Refreshing KPIs… (plug data sources here)" })
+$bExp.Add_Click({ $p=(Join-Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) '_exports'); [IO.Directory]::CreateDirectory($p) | Out-Null; $f=Join-Path $p ("dashboard_{0:yyyyMMdd_HHmmss}.csv" -f (Get-Date)); 'metric,value',"revenue,12345","leads,67" | Set-Content $f; Add-Log $logN "Exported $f" })
 
-# === Analytics (Dashboards) ===
-$anaPanel = New-Object System.Windows.Forms.Panel; $anaPanel.Dock='Top'; $anaPanel.Height=60
-$btnRefresh = New-Object System.Windows.Forms.Button; $btnRefresh.Text='Refresh Dashboards'; $btnRefresh.Width=180; $btnRefresh.Height=32; $btnRefresh.Left=10; $btnRefresh.Top=10
-$btnExport = New-Object System.Windows.Forms.Button; $btnExport.Text='Export CSV'; $btnExport.Left=200; $btnExport.Top=10; $btnExport.Width=140; $btnExport.Height=32
-$anaLog = New-LogBox
-$tabAnalytics.Controls.Add($anaLog); $tabAnalytics.Controls.Add($anaPanel); $anaPanel.Controls.AddRange(@($btnRefresh,$btnExport))
-$btnRefresh.Add_Click({ Add-Log $anaLog "Refreshing KPIs… (plug your data sources here)" })
-$btnExport.Add_Click({ $p=Join-Path (Split-Path -Parent $PSCommandPath) '..\_exports'; New-Item -ItemType Directory -Force -Path $p | Out-Null; $f=Join-Path $p ("dashboard_{0:yyyyMMdd_HHmmss}.csv" -f (Get-Date)); 'metric,value',"revenue,12345","leads,67" | Set-Content $f; Add-Log $anaLog "Exported $f" })
+# Security
+$pS=New-Object System.Windows.Forms.Panel; $pS.Dock='Top'; $pS.Height=60
+$bAud=New-Object System.Windows.Forms.Button; $bAud.Text='Run Security Audit'; $bAud.Width=160; $bAud.Height=32; $bAud.Left=10; $bAud.Top=10
+$bHard=New-Object System.Windows.Forms.Button; $bHard.Text='Apply Hardening'; $bHard.Left=180; $bHard.Top=10; $bHard.Width=140; $bHard.Height=32
+$logS=New-LogBox
+$tSec.Controls.Add($logS); $tSec.Controls.Add($pS); $pS.Controls.AddRange(@($bAud,$bHard))
+$bAud.Add_Click({ Add-Log $logS "Security scan (placeholder)…"; Start-Sleep .4; Add-Log $logS "No critical issues found." })
+$bHard.Add_Click({ Add-Log $logS "Applying baseline hardening (placeholder)…"; Start-Sleep .4; Add-Log $logS "Baseline applied." })
 
-# === Security ===
-$secPanel = New-Object System.Windows.Forms.Panel; $secPanel.Dock='Top'; $secPanel.Height=60
-$btnAudit = New-Object System.Windows.Forms.Button; $btnAudit.Text='Run Security Audit'; $btnAudit.Width=160; $btnAudit.Height=32; $btnAudit.Left=10; $btnAudit.Top=10
-$btnHard = New-Object System.Windows.Forms.Button; $btnHard.Text='Apply Hardening'; $btnHard.Left=180; $btnHard.Top=10; $btnHard.Width=140; $btnHard.Height=32
-$secLog = New-LogBox
-$tabSecurity.Controls.Add($secLog); $tabSecurity.Controls.Add($secPanel); $secPanel.Controls.AddRange(@($btnAudit,$btnHard))
-$btnAudit.Add_Click({ Add-Log $secLog "Security: scanning (placeholder)…"; Start-Sleep 0.5; Add-Log $secLog "No critical issues found." })
-$btnHard.Add_Click({ Add-Log $secLog "Applying baseline hardening (placeholder)…"; Start-Sleep 0.5; Add-Log $secLog "Baseline applied." })
+# Integrations
+$pI=New-Object System.Windows.Forms.Panel; $pI.Dock='Top'; $pI.Height=60
+$bCon=New-Object System.Windows.Forms.Button; $bCon.Text='Connect Service…'; $bCon.Width=160; $bCon.Height=32; $bCon.Left=10; $bCon.Top=10
+$bTst=New-Object System.Windows.Forms.Button; $bTst.Text='Test Connection'; $bTst.Left=180; $bTst.Top=10; $bTst.Width=140; $bTst.Height=32
+$logI=New-LogBox
+$tInt.Controls.Add($logI); $tInt.Controls.Add($pI); $pI.Controls.AddRange(@($bCon,$bTst))
+$bCon.Add_Click({ Add-Log $logI "Connect dialog (placeholder). We'll add OAuth/API keys here." })
+$bTst.Add_Click({ Add-Log $logI "Testing example endpoint…"; Start-Sleep .3; Add-Log $logI "OK" })
 
-# === Integrations ===
-$intPanel = New-Object System.Windows.Forms.Panel; $intPanel.Dock='Top'; $intPanel.Height=60
-$btnConnect = New-Object System.Windows.Forms.Button; $btnConnect.Text='Connect Service…'; $btnConnect.Width=160; $btnConnect.Height=32; $btnConnect.Left=10; $btnConnect.Top=10
-$btnTest = New-Object System.Windows.Forms.Button; $btnTest.Text='Test Connection'; $btnTest.Left=180; $btnTest.Top=10; $btnTest.Width=140; $btnTest.Height=32
-$intLog = New-LogBox
-$tabIntegrations.Controls.Add($intLog); $tabIntegrations.Controls.Add($intPanel); $intPanel.Controls.AddRange(@($btnConnect,$btnTest))
-$btnConnect.Add_Click({ Add-Log $intLog "Connect dialog (placeholder). We’ll add real OAuth/API keys here." })
-$btnTest.Add_Click({ Add-Log $intLog "Testing example endpoint…"; Start-Sleep 0.4; Add-Log $intLog "OK" })
+# Settings
+$grid=New-Object System.Windows.Forms.TableLayoutPanel; $grid.Dock='Fill'; $grid.ColumnCount=2; $grid.RowCount=6; $grid.AutoSize=$true
+$lblEnv=New-Object System.Windows.Forms.Label; $lblEnv.Text='Environment:'; $txtEnv=New-Object System.Windows.Forms.TextBox; $txtEnv.Text='prod'
+$lblLogs=New-Object System.Windows.Forms.Label; $lblLogs.Text='Log Folder:'; $txtLogs=New-Object System.Windows.Forms.TextBox
+$txtLogs.Text = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) '_logs')
+$btnSave=New-Object System.Windows.Forms.Button; $btnSave.Text='Save Settings'; $btnSave.Width=140
+$grid.Controls.Add($lblEnv,0,0); $grid.Controls.Add($txtEnv,1,0); $grid.Controls.Add($lblLogs,0,1); $grid.Controls.Add($txtLogs,1,1); $grid.Controls.Add($btnSave,1,5)
+$tSet.Controls.Add($grid)
+$btnSave.Add_Click({ [IO.Directory]::CreateDirectory($txtLogs.Text) | Out-Null; [System.Windows.Forms.MessageBox]::Show("Saved.","Operion") })
 
-# === Settings ===
-$setPanel = New-Object System.Windows.Forms.TableLayoutPanel
-$setPanel.Dock='Fill'; $setPanel.ColumnCount=2; $setPanel.RowCount=6; $setPanel.AutoSize=$true
-$lblEnv = New-Object System.Windows.Forms.Label; $lblEnv.Text='Environment:'; $txtEnv = New-Object System.Windows.Forms.TextBox; $txtEnv.Text='prod'
-$lblLog = New-Object System.Windows.Forms.Label; $lblLog.Text='Log Folder:'; $txtLog = New-Object System.Windows.Forms.TextBox
-$txtLog.Text = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) "_logs")
-$btnSave = New-Object System.Windows.Forms.Button; $btnSave.Text='Save Settings'; $btnSave.Width=140
-$setPanel.Controls.Add($lblEnv,0,0); $setPanel.Controls.Add($txtEnv,1,0)
-$setPanel.Controls.Add($lblLog,0,1); $setPanel.Controls.Add($txtLog,1,1)
-$setPanel.Controls.Add($btnSave,1,5)
-$tabSettings.Controls.Add($setPanel)
-$btnSave.Add_Click({ [System.IO.Directory]::CreateDirectory($txtLog.Text) | Out-Null; [System.Windows.Forms.MessageBox]::Show("Saved.","Operion") })
-
-[void]$form.ShowDialog()
+[void].ShowDialog()
