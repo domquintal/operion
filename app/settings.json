@@ -1,0 +1,5 @@
+﻿{
+  "appName": "Operion",
+  "heartbeatSeconds": 3,
+  "logRetentionDays": 14
+}
