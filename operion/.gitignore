@@ -1,0 +1,8 @@
+_logs/
+misc/
+*.log
+*.out.txt
+*.err.txt
+*.pyc
+__pycache__/
+.venv/
