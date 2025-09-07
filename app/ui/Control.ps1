@@ -11,7 +11,7 @@ $Run  = Join-Path $Repo "app\run.ps1"
 $SanV = Join-Path $Ops  "sanity.view.ps1"
 $Upd  = Join-Path $Ops  "update.ps1"
 $Pkg  = Join-Path $Ops  "package.ps1"
-$Version = (Test-Path $VerF) ? ((Get-Content -Raw -LiteralPath $VerF).Trim()) : "0.0.0"
+$Version = if (Test-Path $VerF) { (Get-Content -Raw -LiteralPath $VerF).Trim() } else { "0.0.0" }
 
 # XAML (header uses Grid with 2 columns; status right-aligned)
 $xaml = @"
