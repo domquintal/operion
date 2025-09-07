@@ -1,4 +1,4 @@
-_logs/
+﻿_logs/
 misc/
 *.log
 *.out.txt
@@ -6,3 +6,5 @@ misc/
 *.pyc
 __pycache__/
 .venv/
+dist/
+
