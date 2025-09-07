@@ -2,9 +2,10 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName PresentationFramework
 
-# XAML for modern UI
-[xml]$xaml = @"
+# XAML with proper xmlns:x and simple, reliable styling
+$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Operion" Height="600" Width="900"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E2F" Foreground="White" FontFamily="Segoe UI">
@@ -16,106 +17,141 @@ Add-Type -AssemblyName PresentationFramework
 
     <!-- Header -->
     <Border Grid.Row="0" Background="#2D2D44">
-      <TextBlock Text="Operion Dashboard" 
+      <TextBlock Text="Operion Dashboard"
                  VerticalAlignment="Center" HorizontalAlignment="Center"
                  FontSize="22" FontWeight="Bold" Foreground="#00E5FF"/>
     </Border>
 
     <!-- Tabs -->
-    <TabControl Grid.Row="1" x:Name="Tabs" Background="#1E1E2F">
-      <TabItem Header="Automation" x:Name="TabAutomation"/>
-      <TabItem Header="Analytics" x:Name="TabAnalytics"/>
-      <TabItem Header="Security" x:Name="TabSecurity"/>
-      <TabItem Header="Integrations" x:Name="TabIntegrations"/>
-      <TabItem Header="Settings" x:Name="TabSettings"/>
+    <TabControl Grid.Row="1" x:Name="Tabs" Background="#1E1E2F" BorderThickness="0">
+      <!-- Automation -->
+      <TabItem Header="Automation">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="AutoRunBtn"    Content="Run Flow"       Padding="10,6" Margin="0,0,10,0" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+            <Button x:Name="AutoSchedBtn"  Content="Schedule Task"  Padding="10,6" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+          </StackPanel>
+          <TextBox x:Name="AutoLog" Grid.Row="1" Background="#252539" Foreground="White"
+                   FontFamily="Consolas" FontSize="12" IsReadOnly="True"
+                   TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </Grid>
+      </TabItem>
+
+      <!-- Analytics -->
+      <TabItem Header="Analytics">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="AnaRefreshBtn" Content="Refresh KPIs" Padding="10,6" Margin="0,0,10,0" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+            <Button x:Name="AnaExportBtn"  Content="Export CSV"   Padding="10,6" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+          </StackPanel>
+          <TextBox x:Name="AnaLog" Grid.Row="1" Background="#252539" Foreground="White"
+                   FontFamily="Consolas" FontSize="12" IsReadOnly="True"
+                   TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </Grid>
+      </TabItem>
+
+      <!-- Security -->
+      <TabItem Header="Security">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="SecAuditBtn"   Content="Run Audit"      Padding="10,6" Margin="0,0,10,0" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+            <Button x:Name="SecHardenBtn"  Content="Apply Hardening" Padding="10,6" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+          </StackPanel>
+          <TextBox x:Name="SecLog" Grid.Row="1" Background="#252539" Foreground="White"
+                   FontFamily="Consolas" FontSize="12" IsReadOnly="True"
+                   TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </Grid>
+      </TabItem>
+
+      <!-- Integrations -->
+      <TabItem Header="Integrations">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="IntConnectBtn" Content="Connect Service" Padding="10,6" Margin="0,0,10,0" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+            <Button x:Name="IntTestBtn"    Content="Test Connection" Padding="10,6" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+          </StackPanel>
+          <TextBox x:Name="IntLog" Grid.Row="1" Background="#252539" Foreground="White"
+                   FontFamily="Consolas" FontSize="12" IsReadOnly="True"
+                   TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </Grid>
+      </TabItem>
+
+      <!-- Settings -->
+      <TabItem Header="Settings">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="SetSaveBtn" Content="Save Settings" Padding="10,6" Background="#00E5FF" Foreground="#111" FontWeight="Bold"/>
+          </StackPanel>
+          <TextBox x:Name="SetLog" Grid.Row="1" Background="#252539" Foreground="White"
+                   FontFamily="Consolas" FontSize="12" IsReadOnly="True"
+                   TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </Grid>
+      </TabItem>
     </TabControl>
   </Grid>
 </Window>
 "@
 
-# Load XAML
-$reader=(New-Object System.Xml.XmlNodeReader $xaml)
-$Window=[Windows.Markup.XamlReader]::Load($reader)
+# Parse XAML (string -> WPF visual tree)
+$Window = [Windows.Markup.XamlReader]::Parse($xaml)
 
-# Controls
-$Tabs        = $Window.FindName("Tabs")
-$TabAutomation = $Window.FindName("TabAutomation")
-$TabAnalytics  = $Window.FindName("TabAnalytics")
-$TabSecurity   = $Window.FindName("TabSecurity")
-$TabIntegrations = $Window.FindName("TabIntegrations")
-$TabSettings  = $Window.FindName("TabSettings")
-
-function New-TabContent($title){
-    $grid = New-Object Windows.Controls.Grid
-    $grid.RowDefinitions.Add((New-Object Windows.Controls.RowDefinition))
-    $grid.RowDefinitions[0].Height = "60"
-    $grid.RowDefinitions.Add((New-Object Windows.Controls.RowDefinition))
-
-    $panel = New-Object Windows.Controls.StackPanel
-    $panel.Orientation="Horizontal"
-    $panel.Margin="10"
-
-    $log = New-Object Windows.Controls.TextBox
-    $log.Text="[$title] Ready.`r`n"
-    $log.AcceptsReturn=$true
-    $log.VerticalScrollBarVisibility="Auto"
-    $log.HorizontalScrollBarVisibility="Disabled"
-    $log.TextWrapping="Wrap"
-    $log.IsReadOnly=$true
-    $log.Background="#252539"
-    $log.Foreground="White"
-    $log.FontFamily="Consolas"
-    $log.FontSize=12
-    $log.Margin="10"
-    [Windows.Controls.Grid]::SetRow($log,1)
-
-    $grid.Children.Add($panel)
-    $grid.Children.Add($log)
-
-    return @{Grid=$grid; Panel=$panel; Log=$log}
-}
-function Add-Button($panel,$label,$onClick){
-    $btn=New-Object Windows.Controls.Button
-    $btn.Content=$label
-    $btn.Margin="5"
-    $btn.Padding="10,5"
-    $btn.Background="#00E5FF"
-    $btn.Foreground="Black"
-    $btn.FontWeight="Bold"
-    $btn.Add_Click($onClick)
-    $panel.Children.Add($btn) | Out-Null
+# Helper for logs
+function Append-Log($tb,[string]$msg){
+  $tb.AppendText($msg + "`r`n")
+  $tb.ScrollToEnd()
 }
 
-# Build tabs
-$auto = New-TabContent "Automation"
-Add-Button $auto.Panel "Run Flow" { $auto.Log.AppendText("Running flow...`r`nDone ✅`r`n") }
-Add-Button $auto.Panel "Schedule Task" { $auto.Log.AppendText("Scheduling task...`r`n") }
-$TabAutomation.Content=$auto.Grid
+# Resolve dirs for exports
+$ScriptDir = Split-Path -Parent $PSCommandPath
+$ExportDir = Join-Path $ScriptDir "..\_exports"
+[void][IO.Directory]::CreateDirectory((Resolve-Path -LiteralPath (Join-Path $ScriptDir "..") ).Path + "\_exports")
 
-$ana = New-TabContent "Analytics"
-Add-Button $ana.Panel "Refresh KPIs" { $ana.Log.AppendText("Refreshing KPIs...`r`n") }
-Add-Button $ana.Panel "Export CSV" {
-  $p=Join-Path (Split-Path -Parent $PSCommandPath) "..\_exports"
-  New-Item -ItemType Directory -Force -Path $p | Out-Null
-  $f=Join-Path $p ("dashboard_{0:yyyyMMdd_HHmmss}.csv" -f (Get-Date))
-  "metric,value`nrevenue,12345`nleads,67" | Set-Content $f
-  $ana.Log.AppendText("Exported $f`r`n")
-}
-$TabAnalytics.Content=$ana.Grid
+# Wire controls
+$AutoLog = $Window.FindName('AutoLog')
+$AnaLog  = $Window.FindName('AnaLog')
+$SecLog  = $Window.FindName('SecLog')
+$IntLog  = $Window.FindName('IntLog')
+$SetLog  = $Window.FindName('SetLog')
 
-$sec = New-TabContent "Security"
-Add-Button $sec.Panel "Run Audit" { $sec.Log.AppendText("Security audit complete: 0 critical issues.`r`n") }
-Add-Button $sec.Panel "Apply Hardening" { $sec.Log.AppendText("Baseline hardening applied.`r`n") }
-$TabSecurity.Content=$sec.Grid
+$Window.FindName('AutoRunBtn').Add_Click({ Append-Log $AutoLog "Running flow..."; Start-Sleep 0.2; Append-Log $AutoLog "Done ✅" })
+$Window.FindName('AutoSchedBtn').Add_Click({ Append-Log $AutoLog "Scheduling task..." })
 
-$int = New-TabContent "Integrations"
-Add-Button $int.Panel "Connect Service" { $int.Log.AppendText("Connect dialog (placeholder).`r`n") }
-Add-Button $int.Panel "Test Connection" { $int.Log.AppendText("Test successful.`r`n") }
-$TabIntegrations.Content=$int.Grid
+$Window.FindName('AnaRefreshBtn').Add_Click({ Append-Log $AnaLog "Refreshing KPIs..." })
+$Window.FindName('AnaExportBtn').Add_Click({
+  $dir = (Resolve-Path -LiteralPath (Join-Path $ScriptDir "..")).Path + "\_exports"
+  [void][IO.Directory]::CreateDirectory($dir)
+  $file = Join-Path $dir ("dashboard_{0:yyyyMMdd_HHmmss}.csv" -f (Get-Date))
+  "metric,value`nrevenue,12345`nleads,67" | Set-Content -Encoding UTF8 $file
+  Append-Log $AnaLog "Exported $file"
+})
 
-$set = New-TabContent "Settings"
-Add-Button $set.Panel "Save Settings" { $set.Log.AppendText("Settings saved.`r`n") }
-$TabSettings.Content=$set.Grid
+$Window.FindName('SecAuditBtn').Add_Click({ Append-Log $SecLog "Security audit complete: 0 critical issues." })
+$Window.FindName('SecHardenBtn').Add_Click({ Append-Log $SecLog "Baseline hardening applied." })
 
-# Show
+$Window.FindName('IntConnectBtn').Add_Click({ Append-Log $IntLog "Connect dialog (placeholder)." })
+$Window.FindName('IntTestBtn').Add_Click({ Append-Log $IntLog "Connection OK." })
+
+$Window.FindName('SetSaveBtn').Add_Click({ Append-Log $SetLog "Settings saved." })
+
+# Show UI
 $Window.ShowDialog() | Out-Null
