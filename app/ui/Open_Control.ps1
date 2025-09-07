@@ -1,6 +1,8 @@
-﻿# Opens the Operion Control window
+﻿# app/ui/Open_Control.ps1
 $ErrorActionPreference="Stop"
-& (Get-Command pwsh -EA SilentlyContinue)?.Path -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Control.ps1") `
-  2>$null; if($LASTEXITCODE -ne 0){
+$pw = Get-Command pwsh -ErrorAction SilentlyContinue
+if ($pw) {
+  & $pw.Path -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Control.ps1")
+} else {
   & (Get-Command powershell -EA Stop).Path -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Control.ps1")
 }

@@ -1,23 +1,21 @@
-﻿# app\ui\Control.ps1  (PowerShell 5.1+/7 compatible)
-# Lightweight control panel: Version footer + Sanity + Update + Logs
+﻿# app/ui/Control.ps1
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName PresentationFramework
 
-# Resolve paths
+# Paths
 $Repo = (Resolve-Path "..").Path
 $Ops  = Join-Path $Repo "ops"
 $Logs = Join-Path $Repo "_logs"
 $VerF = Join-Path $Repo "VERSION.txt"
 $SanV = Join-Path $Ops  "sanity.view.ps1"
 $Upd  = Join-Path $Ops  "update.ps1"
-
-# Read version
 if (Test-Path $VerF) { $Version = (Get-Content -Raw -LiteralPath $VerF).Trim() } else { $Version = "0.0.0" }
 
-# XAML
-[xml]$x = @"
+# XAML (note xmlns:x is included)
+$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="Operion — Control" Width="520" Height="340"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Operion — Control" Width="520" Height="360"
         WindowStartupLocation="CenterScreen" Background="#0F172A" Foreground="#E5E7EB" FontFamily="Segoe UI">
   <Grid Margin="16">
     <Grid.RowDefinitions>
@@ -31,7 +29,7 @@ if (Test-Path $VerF) { $Version = (Get-Content -Raw -LiteralPath $VerF).Trim() }
 
     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Left" >
       <Button x:Name="BtnSanity" Content="Run Sanity (✓/✗)" Width="150" Height="34" Margin="0,0,8,0"/>
-      <Button x:Name="BtnUpdate" Content="Update (pull → sanity → push)" Width="220" Height="34" Margin="0,0,8,0"/>
+      <Button x:Name="BtnUpdate" Content="Update (pull → sanity → push)" Width="230" Height="34" Margin="0,0,8,0"/>
       <Button x:Name="BtnLogs"   Content="Open Logs" Width="100" Height="34"/>
     </StackPanel>
 
@@ -52,10 +50,10 @@ if (Test-Path $VerF) { $Version = (Get-Content -Raw -LiteralPath $VerF).Trim() }
 </Window>
 "@
 
-$reader = New-Object System.Xml.XmlNodeReader $x
+$reader = New-Object System.Xml.XmlNodeReader ([xml]$xaml)
 $win    = [Windows.Markup.XamlReader]::Load($reader)
 
-# Bind controls
+# Bind
 $BtnSanity = $win.FindName("BtnSanity")
 $BtnUpdate = $win.FindName("BtnUpdate")
 $BtnLogs   = $win.FindName("BtnLogs")
@@ -66,65 +64,46 @@ $VerTxt    = $win.FindName("VerTxt")
 $VerTxt.Text = $Version
 $BtnClose.Add_Click({ $win.Close() })
 
-function Use-Shell { 
+function Use-Shell {
   $pw = Get-Command pwsh -ErrorAction SilentlyContinue
   if ($pw) { return $pw.Path } else { return (Get-Command powershell -ErrorAction Stop).Path }
 }
-
 function Append([string]$t){ $Out.Text += ($t + [Environment]::NewLine) }
 
-# Sanity (visual)
+# Buttons
 $BtnSanity.Add_Click({
   try {
     Append "Launching sanity.view.ps1..."
     $sh = Use-Shell
     Start-Process $sh -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File', $SanV) | Out-Null
-  } catch {
-    Append "Error: $($_.Exception.Message)"
-  }
+  } catch { Append "Error: $($_.Exception.Message)" }
 })
 
-# Logs
 $BtnLogs.Add_Click({
   try { if (-not (Test-Path $Logs)) { New-Item -ItemType Directory -Force -Path $Logs | Out-Null }
         Start-Process explorer.exe $Logs } catch { Append "Error opening logs: $($_.Exception.Message)" }
 })
 
-# Update (progress)
 $BtnUpdate.Add_Click({
   try {
-    $Bar.IsIndeterminate = $true
-    $Out.Text = ""
+    $Bar.IsIndeterminate = $true; $Out.Text = ""
     Append "Running update (git pull → sanity → commit/push on PASS)..."
     $sh = Use-Shell
-
-    $so = [IO.Path]::GetTempFileName()
-    $se = [IO.Path]::GetTempFileName()
-
+    $so = [IO.Path]::GetTempFileName(); $se = [IO.Path]::GetTempFileName()
     $p = Start-Process $sh -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File', $Upd) `
-        -PassThru -WindowStyle Hidden -RedirectStandardOutput $so -RedirectStandardError $se
-
-    # Poll and stream
-    $timer = New-Object Windows.Threading.DispatcherTimer
-    $timer.Interval = [TimeSpan]::FromMilliseconds(500)
+         -PassThru -WindowStyle Hidden -RedirectStandardOutput $so -RedirectStandardError $se
+    $timer = New-Object Windows.Threading.DispatcherTimer; $timer.Interval = [TimeSpan]::FromMilliseconds(500)
     $timer.Add_Tick({
       if ($p.HasExited) {
-        $timer.Stop()
-        $Bar.IsIndeterminate = $false
-        $Bar.Value = 100
-        $txt = (Get-Content -Raw -LiteralPath $so) + "`n" + (Get-Content -Raw -LiteralPath $se)
+        $timer.Stop(); $Bar.IsIndeterminate = $false; $Bar.Value = 100
+        $txt = (Get-Content -Raw -LiteralPath $so) + "`r`n" + (Get-Content -Raw -LiteralPath $se)
         $Out.Text = $txt
-      } else {
-        # light heartbeat
-        if ($Bar.IsIndeterminate -eq $false) { $Bar.IsIndeterminate = $true }
       }
     })
     $timer.Start()
   } catch {
-    $Bar.IsIndeterminate = $false
-    Append "Update error: $($_.Exception.Message)"
+    $Bar.IsIndeterminate = $false; Append "Update error: $($_.Exception.Message)"
   }
 })
 
-# Show
 $win.ShowDialog() | Out-Null
