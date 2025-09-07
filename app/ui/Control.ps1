@@ -3,7 +3,9 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName PresentationFramework
 
 # Paths
-$Repo = (Resolve-Path "..").Path
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $ScriptDir) { $ScriptDir = $PSScriptRoot }
+$Repo = Split-Path -Parent $ScriptDir
 $Ops  = Join-Path $Repo "ops"
 $Logs = Join-Path $Repo "_logs"
 $VerF = Join-Path $Repo "VERSION.txt"
@@ -197,3 +199,4 @@ Set-Status $false
 $BtnLogs.Add_Click({ Start-Process explorer.exe $Logs })
 $BtnClose.Add_Click({ $timerH.Stop(); $win.Close() })
 $win.ShowDialog() | Out-Null
+
