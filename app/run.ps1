@@ -2,20 +2,21 @@
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Repo = Split-Path -Parent $Root
 
-# Load settings (with safe defaults)
+# Settings with safe defaults
 $SettingsPath = Join-Path $Repo "app\settings.json"
 $settings = $null
 try { $settings = (Get-Content -Raw -LiteralPath $SettingsPath | ConvertFrom-Json) } catch { }
 if (-not $settings) { $settings = @{ appName = "Operion"; heartbeatSeconds = 3; logRetentionDays = 14 } }
 
-# Prepare logging
+# Logging
 $logDir = Join-Path $Repo "_logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $log = Join-Path $logDir ("app_{0}.log" -f $stamp)
 
 "Starting $($settings.appName) runloop..." | Tee-Object -FilePath $log
-$beat = [int]$settings.heartbeatSeconds; if ($beat -lt 1) { $beat = 3 }
+$beat = [int]$settings.heartbeatSeconds
+if ($beat -lt 1) { $beat = 3 }
 
 # Retention
 $keep = [int]$settings.logRetentionDays
