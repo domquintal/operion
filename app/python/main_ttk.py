@@ -145,7 +145,7 @@ class App(tb.Window):
                          themename="darkly",  # try "cyborg", "superhero", "vapor"
                          size=SETTINGS.get("window_size", [1200,740]))
         self.place_window_center()
-        self.style = tb.Style()
+        self._style = tb.Style()
 
         # Root layout: left nav + right content
         self.columnconfigure(0, minsize=220)
@@ -444,3 +444,4 @@ if __name__ == "__main__":
     app = App()
     app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()
+
