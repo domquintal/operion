@@ -1,0 +1,29 @@
+﻿name: operion-ci
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+jobs:
+  windows-ci:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PowerShell modules
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber
+      - name: Lint scripts
+        shell: pwsh
+        run: |
+          $errs = Invoke-ScriptAnalyzer -Path ./ -Recurse -Severity Error -EnableExit
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          $out = "artifacts"; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item app -Recurse -Destination "$out/app"
+          Copy-Item ops -Recurse -Destination "$out/ops"
+          Compress-Archive -Path "$out/*" -DestinationPath "operion_artifacts.zip" -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: operion-artifacts
+          path: operion_artifacts.zip

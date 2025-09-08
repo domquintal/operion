@@ -52,7 +52,7 @@ $xaml = @"
             <Button x:Name="BtnZip"     Content="Make ZIP"     Margin="0,0,0,8"/>
             <Button x:Name="BtnDash"    Content="Open Dashboard" Margin="0,0,0,8"/>
             <Button x:Name="BtnPolicy"  Content="Edit Policy"  Margin="0,0,0,8"/>
-          </WrapPanel>
+          <Button x:Name="BtnNotify" Content="Notifications" Margin="0,0,0,8"/></WrapPanel>
         </StackPanel>
       </Border>
       <Border Background="#111827" CornerRadius="14" Padding="12">
@@ -81,8 +81,7 @@ $xaml = @"
         </ScrollViewer>
       </Border>
     </Grid>
-  </Grid>
-</Window>
+    <StatusBar VerticalAlignment="Bottom" Background="#0B1220"><StatusBarItem><TextBlock x:Name="VerTxt"/></StatusBarItem></StatusBar></Grid></Window>
 "@
 
 $win = [Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader ([xml]$xaml)))
@@ -95,6 +94,9 @@ $BtnPolicy   = $win.FindName("BtnPolicy")
 $BtnWDOn     = $win.FindName("BtnWDOn")
 $BtnWDOff    = $win.FindName("BtnWDOff")
 $LogBox      = $win.FindName("LogBox")
+$BtnNotify = $win.FindName("BtnNotify"); $VerTxt = $win.FindName("VerTxt")
+$VersionF = Join-Path $Repo "app\version.json"
+try{ $V = Get-Content -Raw -LiteralPath $VersionF | ConvertFrom-Json; $VerTxt.Text = ("v{0} · build {1}" -f $V.version,$V.build) } catch { $VerTxt.Text = "v0.0.0" }
 
 function Append([string]$t){ $LogBox.AppendText($t+"`r`n"); $LogBox.ScrollToEnd() }
 function Use-Shell(){ if(Get-Command pwsh -EA SilentlyContinue){ 'pwsh' } else { 'powershell' } }
@@ -159,6 +161,8 @@ $BtnPolicy.Add_Click({
 })
 
 # Watchdog toggles
+# Notifications Center
+$BtnNotify.Add_Click({ Start-Process (Use-Shell) -ArgumentList @("-NoLogo","-NoProfile","-ExecutionPolicy","Bypass","-File", (Join-Path $Repo "app\ui\Notify.ps1")) })
 $BtnWDOn.Add_Click({  & (Join-Path $Ops "watchdog.toggle.ps1") -Enable;  Show-Note("Watchdog ENABLED");  Audit "watchdog_toggle" "on" })
 $BtnWDOff.Add_Click({ & (Join-Path $Ops "watchdog.toggle.ps1");         Show-Note("Watchdog DISABLED"); Audit "watchdog_toggle" "off" })
 
@@ -166,3 +170,4 @@ $BtnWDOff.Add_Click({ & (Join-Path $Ops "watchdog.toggle.ps1");         Show-Not
 Append ("Welcome, " + $env:USERNAME)
 $win.ShowDialog() | Out-Null
 # ==== END Control V2 ====
+
