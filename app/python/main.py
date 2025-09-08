@@ -1,12 +1,14 @@
 ﻿"""
-Operion Desktop Dashboard (software-only)
+Operion Desktop Dashboard (software-only, PySimpleGUI v5 compatible)
 Tabs: Automation | Analytics | Security | About/Help
-Deps: PySimpleGUI 5.x, psutil
-Charts: PySimpleGUI Graph (no matplotlib)
+Chart: Pillow-rendered PNG (no Matplotlib). Logs: _logs\operion_YYYYMMDD.log
 """
-import os, sys, json, time, hashlib, datetime, glob
+
+import os, json, time, hashlib, datetime, glob
 from pathlib import Path
+
 import PySimpleGUI as sg
+from PIL import Image, ImageDraw, ImageFont
 import psutil
 
 REPO = Path(__file__).resolve().parents[2]
@@ -23,9 +25,12 @@ def load_json(p, fallback):
 
 VERSION = load_json(APP/"version.json", {"version":"0.0.0","build":"NA"})
 APPSET  = load_json(APP/"appsettings.json", {"log_retention_days": 30})
-SETTINGS_F = PY/"settings.json"
-SETTINGS = load_json(SETTINGS_F, {"last_tab":"Automation","window_size":[1024,720],"pin_enabled":False,"pin_hash":"","last_folder":str(Path.home())})
 
+SETTINGS_F = PY/"settings.json"
+SETTINGS = load_json(SETTINGS_F, {
+    "last_tab":"Automation","window_size":[1024,720],
+    "pin_enabled":False,"pin_hash":"","last_folder":str(Path.home())
+})
 def save_settings():
     SETTINGS_F.write_text(json.dumps(SETTINGS, indent=2), encoding="utf-8")
 
@@ -44,7 +49,6 @@ def cleanup_old_logs(days:int):
             if dt < cutoff:
                 f.unlink()
         except: pass
-
 cleanup_old_logs(int(APPSET.get("log_retention_days",30)))
 
 # Security: lockout rule (10 fails / 15 minutes)
@@ -52,7 +56,6 @@ FAIL_WINDOW = datetime.timedelta(minutes=15)
 FAIL_LIMIT  = 10
 fail_attempts = []
 locked_until = None
-
 def record_login(success:bool):
     global fail_attempts, locked_until
     now = datetime.datetime.now()
@@ -78,86 +81,11 @@ def verify_pin(pin:str)->bool:
     ph = SETTINGS.get("pin_hash","")
     if not SETTINGS.get("pin_enabled", False): return True
     if not ph: return True
-    import hashlib
     return hashlib.sha256(pin.encode("utf-8")).hexdigest() == ph
-
-# ---------- Analytics helpers (Graph chart) ----------
-def processed_counts_by_day():
-    counts = {}
-    for f in LOGS.glob("operion_*.log"):
-        day = f.stem.split("_")[-1]
-        try:
-            c = 0
-            for line in open(f, "r", encoding="utf-8"):
-                if "PROCESSED" in line: c += 1
-            counts[day] = counts.get(day, 0) + c
-        except: pass
-    if not counts:
-        counts[datetime.datetime.now().strftime("%Y%m%d")] = 0
-    xs = sorted(counts.keys())
-    ys = [counts[x] for x in xs]
-    return xs, ys
-
-CHART_W, CHART_H = 680, 240
-PAD_L, PAD_R, PAD_T, PAD_B = 40, 12, 16, 28
-
-def draw_chart(graph: sg.Graph):
-    xs, ys = processed_counts_by_day()
-    graph.erase()
-    # Axes
-    graph.draw_line((PAD_L, PAD_B), (CHART_W-PAD_R, PAD_B))       # X axis
-    graph.draw_line((PAD_L, PAD_B), (PAD_L, CHART_H-PAD_T))       # Y axis
-    if not xs: return
-    max_y = max(1, max(ys))
-    n = max(1, len(xs)-1)
-    plot_w = (CHART_W - PAD_L - PAD_R)
-    plot_h = (CHART_H - PAD_T - PAD_B)
-    pts = []
-    for i,y in enumerate(ys):
-        xpix = PAD_L + plot_w * (i / max(1,len(xs)-1))
-        ypix = PAD_B + (0 if max_y==0 else (y / max_y) * plot_h)
-        pts.append((xpix, ypix))
-    # gridlines (quartiles)
-    for frac in (0.25,0.5,0.75,1.0):
-        y = PAD_B + frac * plot_h
-        graph.draw_line((PAD_L, y), (CHART_W-PAD_R, y), color="#334155")
-        graph.draw_text(str(round(max_y*frac)), (PAD_L-8, y), color="#9CA3AF", text_location=sg.TEXT_LOCATION_MIDDLE_RIGHT, font=("Segoe UI",8))
-    # polyline
-    for i in range(1, len(pts)):
-        graph.draw_line(pts[i-1], pts[i], color="#60A5FA", width=2)
-    for p in pts:
-        graph.draw_circle(p, 2, fill_color="#93C5FD", line_color="#93C5FD")
-    # first/last x labels
-    if xs:
-        graph.draw_text(xs[0], (PAD_L, PAD_B-12), color="#9CA3AF", text_location=sg.TEXT_LOCATION_TOP_LEFT, font=("Segoe UI",8))
-        graph.draw_text(xs[-1], (CHART_W-PAD_R, PAD_B-12), color="#9CA3AF", text_location=sg.TEXT_LOCATION_TOP_RIGHT, font=("Segoe UI",8))
-    graph.draw_text("Processed files per day", (PAD_L, CHART_H-4), color="#E5E7EB", text_location=sg.TEXT_LOCATION_TOP_LEFT, font=("Segoe UI",9,"bold"))
-
-def tail_logs(n=200):
-    files = sorted(LOGS.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not files: return ["No logs yet."]
-    last = files[0]
-    try:
-        with open(last, "r", encoding="utf-8") as f:
-            lines = f.readlines()[-n:]
-    except:
-        lines = ["(cannot read log)"]
-    return [l.rstrip("\n") for l in lines]
-
-def sys_summary():
-    cpu = psutil.cpu_percent(interval=None)
-    mem = psutil.virtual_memory().percent
-    net = psutil.net_io_counters()
-    return f"CPU {cpu:.0f}% | MEM {mem:.0f}% | NET sent {net.bytes_sent//1024//1024}MB recv {net.bytes_recv//1024//1024}MB"
-
-def write_csv_report(rows, path):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("timestamp,action,detail\n")
-        for ts, action, detail in rows:
-            f.write(f"{ts},{action},{detail}\n")
 
 # ---------- UI ----------
 sg.theme("DarkBlue14")
+chart_png = str(PY/"analytics.png")
 
 auto_layout = [
     [sg.Text("Automation — run workflows, process files, auto-generate outputs")],
@@ -170,8 +98,7 @@ auto_layout = [
 ana_layout = [
     [sg.Text("Analytics — throughput & performance")],
     [sg.Button("Refresh Analytics", key="-REFRESH-")],
-    [sg.Graph(canvas_size=(CHART_W,CHART_H), graph_bottom_left=(0,0), graph_top_right=(CHART_W,CHART_H),
-              key="-GRAPH-", background_color="#0B1220")],
+    [sg.Image(filename=chart_png, key="-CHART-")],
     [sg.Text("System:"), sg.Text("", key="-SYS-")]
 ]
 
@@ -190,52 +117,126 @@ abt_layout = [
     [sg.Text(f"Version: v{VERSION.get('version')} · build {VERSION.get('build')}")],
     [sg.Text("This desktop app provides Automation / Analytics / Security in one place.")],
     [sg.HorizontalSeparator()],
-    [sg.Text("Tips: Run Workflow on a folder of .txt/.csv; Analytics shows processed/day; Security demonstrates lockout.")]
+    [sg.Text("Tips: Run a workflow on a folder; check Security to simulate lockouts; Analytics shows processed/day.")]
 ]
 
 layout = [
-    [sg.TabGroup([[ sg.Tab("Automation", auto_layout, key="-TAB-AUTO-"),
-                    sg.Tab("Analytics",  ana_layout,  key="-TAB-ANA-"),
-                    sg.Tab("Security",   sec_layout,  key="-TAB-SEC-"),
-                    sg.Tab("About/Help", abt_layout,  key="-TAB-ABT-"), ]],
-                 key="-TABS-", selected_title_color="white", tab_location="top")],
+    [sg.TabGroup([[
+        sg.Tab("Automation", auto_layout, key="-TAB-AUTO-"),
+        sg.Tab("Analytics",  ana_layout,  key="-TAB-ANA-"),
+        sg.Tab("Security",   sec_layout,  key="-TAB-SEC-"),
+        sg.Tab("About/Help", abt_layout,  key="-TAB-ABT-"),
+    ]], key="-TABS-", selected_title_color="white", tab_location="top")],
     [sg.StatusBar(f"Operion · v{VERSION.get('version')} · build {VERSION.get('build')}  |  Logs: {APPSET.get('log_retention_days',30)}-day retention")]
 ]
 
+def tail_logs(n=200):
+    files = sorted(LOGS.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files: return ["No logs yet."]
+    last = files[0]
+    try:
+        with open(last, "r", encoding="utf-8") as f:
+            lines = f.readlines()[-n:]
+    except:
+        lines = ["(cannot read log)"]
+    return [l.rstrip("\n") for l in lines]
+
+def counts_per_day():
+    counts = {}
+    for f in LOGS.glob("operion_*.log"):
+        day = f.stem.split("_")[-1]
+        try:
+            c = 0
+            for line in open(f, "r", encoding="utf-8"):
+                if "PROCESSED" in line:
+                    c += 1
+            counts[day] = counts.get(day, 0) + c
+        except: pass
+    if not counts:
+        counts[datetime.datetime.now().strftime("%Y%m%d")] = 0
+    return dict(sorted(counts.items()))
+
+def build_chart_png(path: str):
+    # Simple bar chart using Pillow (no Matplotlib)
+    data = counts_per_day()
+    days = list(data.keys())
+    vals = [data[d] for d in days]
+    w, h = 720, 260
+    left, top, right, bottom = 50, 20, 10, 40
+    img = Image.new("RGBA", (w, h), (15, 23, 42, 255))
+    draw = ImageDraw.Draw(img)
+    # axes
+    draw.line((left, h-bottom, w-right, h-bottom), fill=(229,231,235,255), width=1)
+    draw.line((left, h-bottom, left, top), fill=(229,231,235,255), width=1)
+    # bars
+    plot_w = w - left - right
+    plot_h = h - top - bottom
+    n = max(1,len(days))
+    gap = 6
+    bar_w = max(8, int((plot_w - gap*(n+1)) / n))
+    maxv = max(1, max(vals))
+    for i,(d,v) in enumerate(zip(days, vals)):
+        x0 = left + gap + i*(bar_w+gap)
+        x1 = x0 + bar_w
+        bar_h = 0 if maxv==0 else int((v/maxv)*plot_h)
+        y0 = h - bottom - bar_h
+        draw.rectangle([x0,y0,x1,h-bottom], fill=(99,102,241,255))
+        # label (every ~5 bars)
+        if i%max(1,n//8 or 1)==0:
+            draw.text((x0, h-bottom+4), d[-4:], fill=(229,231,235,255), font=ImageFont.load_default())
+    # title
+    draw.text((left, 2), "Processed files per day", fill=(229,231,235,255), font=ImageFont.load_default())
+    img.save(path)
+
+def sys_summary():
+    cpu = psutil.cpu_percent(interval=None)
+    mem = psutil.virtual_memory().percent
+    net = psutil.net_io_counters()
+    return f"CPU {cpu:.0f}% | MEM {mem:.0f}% | NET sent {net.bytes_sent//1024//1024}MB recv {net.bytes_recv//1024//1024}MB"
+
+def write_csv_report(rows, path):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("timestamp,action,detail\n")
+        for ts, action, detail in rows:
+            f.write(f"{ts},{action},{detail}\n")
+
+# Window
 size = tuple(SETTINGS.get("window_size", [1024,720]))
 window = sg.Window("Operion — Dashboard", layout, size=size, finalize=True)
 tabs: sg.TabGroup = window["-TABS-"]
 
-# restore tab
 tab_map = ["Automation","Analytics","Security","About/Help"]
 try:
-    idx = tab_map.index(SETTINGS.get("last_tab","Automation")); tabs.SelectTab(idx)
-except: tabs.SelectTab(0)
+    idx = tab_map.index(SETTINGS.get("last_tab","Automation"))
+    tabs.SelectTab(idx)
+except:
+    tabs.SelectTab(0)
 
-# initial population
+# Initial population
 log_line("INFO","Dashboard started")
 window["-AUTO-LOG-"].update("\n".join(tail_logs()))
-draw_chart(window["-GRAPH-"])
+build_chart_png(chart_png); window["-CHART-"].update(filename=chart_png)
 window["-SYS-"].update(sys_summary())
 window["-SEC-LOG-"].update("\n".join(tail_logs()))
 
-processed_rows = []  # (ts, action, detail)
+processed_rows = []
 last_sys = time.time()
 
 while True:
     ev, vals = window.read(timeout=750)
-    if ev in (sg.WIN_CLOSED, "Exit"): break
+    if ev in (sg.WIN_CLOSED, "Exit"):
+        break
 
     if time.time() - last_sys > 1.5:
         window["-SYS-"].update(sys_summary()); last_sys = time.time()
 
-    # track active tab
     try:
         idx = tabs.TabGroupSelectedTabIndex(tabs)
         SETTINGS["last_tab"] = tab_map[idx]
     except: pass
 
-    if ev == "-IN-FOLDER-": SETTINGS["last_folder"] = vals["-IN-FOLDER-"]
+    if ev == "-IN-FOLDER-":
+        SETTINGS["last_folder"] = vals["-IN-FOLDER-"]
 
     if ev == "Open Outputs":
         os.startfile(str(OUTS))
@@ -256,8 +257,8 @@ while True:
         sg.popup_ok(f"Report written:\n{out}")
 
     if ev == "-RUN-":
-        folder = (vals["-IN-FOLDER-"] or "").strip()
-        pattern = (vals["-GLOB-"] or "*.txt").strip()
+        folder = vals["-IN-FOLDER-"].strip()
+        pattern = vals["-GLOB-"].strip() or "*.txt"
         if not folder or not os.path.isdir(folder):
             sg.popup_error("Pick a valid input folder."); continue
         files = []
@@ -265,9 +266,8 @@ while True:
             files.extend(glob.glob(str(Path(folder)/mask.strip())))
         if not files:
             sg.popup("No files found for pattern."); continue
-        total = len(files); step = max(1, int(100/total))
-        window["-AUTO-LOG-"].update("")
-        processed_rows.clear()
+        total = len(files); step = max(1, int(100/max(1,total)))
+        window["-AUTO-LOG-"].update(""); processed_rows.clear()
         for i,fp in enumerate(files, start=1):
             try:
                 name = os.path.basename(fp)
@@ -284,10 +284,10 @@ while True:
             except Exception as ex:
                 window["-AUTO-LOG-"].print(f"ERROR: {name} :: {ex}")
                 log_line("ERROR", f"{name} :: {ex}")
-            window["-P-"].update(min(100, i*step))
+            window["-P-"].update(min(100, int(i*step)))
             window.refresh()
         sg.popup_ok("Workflow complete.")
-        draw_chart(window["-GRAPH-"])
+        build_chart_png(chart_png); window["-CHART-"].update(filename=chart_png)
 
     if ev == "Simulate Login Success":
         sg.popup_ok(record_login(True))
@@ -305,16 +305,13 @@ while True:
     if ev == "Set PIN":
         pin = vals.get("-PIN-VAL-","")
         if not pin:
-            SETTINGS["pin_hash"] = ""
-            SETTINGS["pin_enabled"] = False
+            SETTINGS["pin_hash"] = ""; SETTINGS["pin_enabled"] = False
             sg.popup_ok("PIN cleared (gate off).")
         else:
-            import hashlib
             SETTINGS["pin_hash"] = hashlib.sha256(pin.encode("utf-8")).hexdigest()
             SETTINGS["pin_enabled"] = True
             sg.popup_ok("PIN set (gate planned).")
 
-# persist window size + settings
 try:
     w,h = window.size
     SETTINGS["window_size"] = [w,h]
