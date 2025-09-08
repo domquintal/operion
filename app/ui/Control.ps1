@@ -7,6 +7,11 @@ $ScriptDir = if ($ThisPath) { Split-Path -Parent $ThisPath } else { $PSScriptRoo
 $Repo      = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
 
 # Paths
+
+# Policy + Audit
+$PolicyF = Join-Path $Repo "app\policy.json"
+$Policy  = if (Test-Path $PolicyF) { Get-Content -Raw -LiteralPath $PolicyF | ConvertFrom-Json } else { @{ allowedUsers=@(); requireConfirmForUpdatePush=$true; watchdog=@{enabled=$false;restartDelaySeconds=2}; notifications=@{enabled=$true} } }
+$Audit   = Join-Path $Repo "ops\audit.ps1"
 $Ops   = Join-Path $Repo "ops"
 $Logs  = Join-Path $Repo "_logs"
 $VerF  = Join-Path $Repo "VERSION.txt"
@@ -127,12 +132,14 @@ $BtnDash.Add_Click({ Start-Process (Use-Shell) -ArgumentList @("-NoLogo","-NoPro
 
 $BtnSanity.Add_Click({ if(Test-Path $SanV){ Start-Process (Use-Shell) -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File', $SanV) | Out-Null } else { Append "sanity.view.ps1 not found ($SanV)." } })
 $BtnUpdate.Add_Click({
-  if(Test-Path $Upd){
-    $Bar.IsIndeterminate=$true; $Out.Text=""; Append "Running update..."; Audit "update_push_start"; Show-Note("Update→Push started…")
+if($Policy.requireConfirmForUpdatePush -and
+   [System.Windows.MessageBox]::Show("Run Update → Push now?","Confirm","YesNo","Question") -ne "Yes"){ Append "Update canceled."; return }if(Test-Path $Upd){
+    $Bar.IsIndeterminate=$true; $Out.Text=""; Append "Running update..."; Audit "update_push_start"; Show-Note("Update→Push started…"); Audit "update_push_start"; Show-Note("Update→Push started…")
     $so=[IO.Path]::GetTempFileName(); $se=[IO.Path]::GetTempFileName()
     $p=Start-Process (Use-Shell) -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File', $Upd) -PassThru -WindowStyle Hidden -RedirectStandardOutput $so -RedirectStandardError $se
     $timer=New-Object Windows.Threading.DispatcherTimer; $timer.Interval=[TimeSpan]::FromMilliseconds(500)
-    $timer.Add_Tick({ if($p.HasExited){ $timer.Stop(); $Bar.IsIndeterminate=$false; $Bar.Value=100; $Out.Text=(Get-Content -Raw -LiteralPath $so)+"`r`n"+(Get-Content -Raw -LiteralPath $se) } })
+    $timer.Add_Tick({ if($p.HasExited){ $timer.Stop(); $Bar.IsIndeterminate=$false; $Bar.Value=100; $Out.Text=(Get-Content -Raw -LiteralPath $so)+"`r`n"+(Get-Content -Raw -LiteralPath $se) }
+})
     $timer.Start()
   } else { Append "update.ps1 not found ($Upd)." }
 })
@@ -165,4 +172,5 @@ $timerH.Start()
 Set-Status $false
 $BtnClose.Add_Click({ $timerH.Stop(); $win.Close() })
 $win.ShowDialog() | Out-Null
+
 
