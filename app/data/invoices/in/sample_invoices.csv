@@ -1,0 +1,4 @@
+﻿invoice_id,vendor,invoice_date,currency,amount,rate_per_hour,hours,line_description
+INV-1001,Lex & Co,2025-09-01,USD,1200,300,4,Contract review
+INV-1002,Lex & Co,2025-09-03,USD,2800,600,4,Rush opinion letter
+INV-1003,ByteLaw,2025-09-03,USD,1200,300,4,Review NDA

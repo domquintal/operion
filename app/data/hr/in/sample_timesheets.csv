@@ -1,0 +1,4 @@
+﻿employee_id,date,hours,department,approved
+E-101,2025-09-05,13,Finance,false
+E-101,2025-09-06,10,Finance,false
+E-202,2025-09-06,9,Ops,true
