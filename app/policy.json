@@ -1,0 +1,6 @@
+﻿{
+  "allowedUsers": ["Domin"],   // empty = everyone
+  "requireConfirmForUpdatePush": true,
+  "watchdog": { "enabled": false, "restartDelaySeconds": 2 },
+  "notifications": { "enabled": true }
+}
