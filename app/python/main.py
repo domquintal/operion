@@ -1,21 +1,19 @@
 ﻿"""
-Operion Desktop Dashboard (software-only, PySimpleGUI v5 compatible)
+Operion Desktop Dashboard (software-only, PSG5-safe)
 Tabs: Automation | Analytics | Security | About/Help
-Chart: Pillow-rendered PNG (no Matplotlib). Logs: _logs\operion_YYYYMMDD.log
+No Matplotlib (analytics shown as text + sparkline). 30-day log retention, state persistence, lockout rule.
 """
-
 import os, json, time, hashlib, datetime, glob
 from pathlib import Path
 
 import PySimpleGUI as sg
-from PIL import Image, ImageDraw, ImageFont
 import psutil
 
 REPO = Path(__file__).resolve().parents[2]
 APP  = REPO / "app"
 PY   = APP / "python"
 LOGS = REPO / "_logs"
-OUTS = PY / "outputs"
+OUTS = PY   / "outputs"
 OUTS.mkdir(parents=True, exist_ok=True)
 LOGS.mkdir(parents=True, exist_ok=True)
 
@@ -25,12 +23,9 @@ def load_json(p, fallback):
 
 VERSION = load_json(APP/"version.json", {"version":"0.0.0","build":"NA"})
 APPSET  = load_json(APP/"appsettings.json", {"log_retention_days": 30})
-
 SETTINGS_F = PY/"settings.json"
-SETTINGS = load_json(SETTINGS_F, {
-    "last_tab":"Automation","window_size":[1024,720],
-    "pin_enabled":False,"pin_hash":"","last_folder":str(Path.home())
-})
+SETTINGS   = load_json(SETTINGS_F, {"last_tab":"Automation","window_size":[1024,720],"pin_enabled":False,"pin_hash":"","last_folder":str(Path.home())})
+
 def save_settings():
     SETTINGS_F.write_text(json.dumps(SETTINGS, indent=2), encoding="utf-8")
 
@@ -49,6 +44,7 @@ def cleanup_old_logs(days:int):
             if dt < cutoff:
                 f.unlink()
         except: pass
+
 cleanup_old_logs(int(APPSET.get("log_retention_days",30)))
 
 # Security: lockout rule (10 fails / 15 minutes)
@@ -56,6 +52,7 @@ FAIL_WINDOW = datetime.timedelta(minutes=15)
 FAIL_LIMIT  = 10
 fail_attempts = []
 locked_until = None
+
 def record_login(success:bool):
     global fail_attempts, locked_until
     now = datetime.datetime.now()
@@ -77,20 +74,27 @@ def security_status():
         return f"LOCKED until {locked_until.strftime('%H:%M:%S')}"
     return "OK"
 
+# PIN (planned)
 def verify_pin(pin:str)->bool:
     ph = SETTINGS.get("pin_hash","")
-    if not SETTINGS.get("pin_enabled", False): return True
-    if not ph: return True
+    if not SETTINGS.get("pin_enabled", False):
+        return True
+    if not ph:
+        return True
+    import hashlib
     return hashlib.sha256(pin.encode("utf-8")).hexdigest() == ph
 
-# ---------- UI ----------
-sg.theme("DarkBlue14")
-chart_png = str(PY/"analytics.png")
+# Try to set a theme (PSG 5 sometimes ships differently). If missing, ignore.
+try:
+    sg.theme("Dark Blue 3")
+except Exception:
+    pass
 
+# --- UI layouts (PSG-5 safe set) ---
 auto_layout = [
     [sg.Text("Automation — run workflows, process files, auto-generate outputs")],
     [sg.Text("Input folder:"), sg.Input(SETTINGS.get("last_folder",""), key="-IN-FOLDER-", enable_events=True), sg.FolderBrowse()],
-    [sg.Text("File types:"), sg.Input("*.txt;*.csv", key="-GLOB-"), sg.Button("Run Workflow", key="-RUN-")],
+    [sg.Text("File types:"),   sg.Input("*.txt;*.csv", key="-GLOB-"), sg.Button("Run Workflow", key="-RUN-")],
     [sg.Button("Open Outputs"), sg.Button("Export Report (.csv)"), sg.ProgressBar(100, orientation="h", size=(40,20), key="-P-")],
     [sg.Multiline(size=(100,12), key="-AUTO-LOG-", autoscroll=True, disabled=True)]
 ]
@@ -98,7 +102,7 @@ auto_layout = [
 ana_layout = [
     [sg.Text("Analytics — throughput & performance")],
     [sg.Button("Refresh Analytics", key="-REFRESH-")],
-    [sg.Image(filename=chart_png, key="-CHART-")],
+    [sg.Multiline(size=(100,12), key="-ANA-", autoscroll=True, disabled=True)],
     [sg.Text("System:"), sg.Text("", key="-SYS-")]
 ]
 
@@ -117,16 +121,15 @@ abt_layout = [
     [sg.Text(f"Version: v{VERSION.get('version')} · build {VERSION.get('build')}")],
     [sg.Text("This desktop app provides Automation / Analytics / Security in one place.")],
     [sg.HorizontalSeparator()],
-    [sg.Text("Tips: Run a workflow on a folder; check Security to simulate lockouts; Analytics shows processed/day.")]
+    [sg.Text("Tips: Run Workflow to process files; use Security to simulate lockout; Analytics to view throughput trends.")]
 ]
 
 layout = [
-    [sg.TabGroup([[
-        sg.Tab("Automation", auto_layout, key="-TAB-AUTO-"),
-        sg.Tab("Analytics",  ana_layout,  key="-TAB-ANA-"),
-        sg.Tab("Security",   sec_layout,  key="-TAB-SEC-"),
-        sg.Tab("About/Help", abt_layout,  key="-TAB-ABT-"),
-    ]], key="-TABS-", selected_title_color="white", tab_location="top")],
+    [sg.TabGroup([[ sg.Tab("Automation", auto_layout, key="-TAB-AUTO-"),
+                    sg.Tab("Analytics",  ana_layout,  key="-TAB-ANA-"),
+                    sg.Tab("Security",   sec_layout,  key="-TAB-SEC-"),
+                    sg.Tab("About/Help", abt_layout,  key="-TAB-ABT-") ]],
+                 key="-TABS-", tab_location="top")],
     [sg.StatusBar(f"Operion · v{VERSION.get('version')} · build {VERSION.get('build')}  |  Logs: {APPSET.get('log_retention_days',30)}-day retention")]
 ]
 
@@ -141,7 +144,7 @@ def tail_logs(n=200):
         lines = ["(cannot read log)"]
     return [l.rstrip("\n") for l in lines]
 
-def counts_per_day():
+def counts_by_day():
     counts = {}
     for f in LOGS.glob("operion_*.log"):
         day = f.stem.split("_")[-1]
@@ -152,41 +155,18 @@ def counts_per_day():
                     c += 1
             counts[day] = counts.get(day, 0) + c
         except: pass
-    if not counts:
-        counts[datetime.datetime.now().strftime("%Y%m%d")] = 0
-    return dict(sorted(counts.items()))
+    return counts
 
-def build_chart_png(path: str):
-    # Simple bar chart using Pillow (no Matplotlib)
-    data = counts_per_day()
-    days = list(data.keys())
-    vals = [data[d] for d in days]
-    w, h = 720, 260
-    left, top, right, bottom = 50, 20, 10, 40
-    img = Image.new("RGBA", (w, h), (15, 23, 42, 255))
-    draw = ImageDraw.Draw(img)
-    # axes
-    draw.line((left, h-bottom, w-right, h-bottom), fill=(229,231,235,255), width=1)
-    draw.line((left, h-bottom, left, top), fill=(229,231,235,255), width=1)
-    # bars
-    plot_w = w - left - right
-    plot_h = h - top - bottom
-    n = max(1,len(days))
-    gap = 6
-    bar_w = max(8, int((plot_w - gap*(n+1)) / n))
-    maxv = max(1, max(vals))
-    for i,(d,v) in enumerate(zip(days, vals)):
-        x0 = left + gap + i*(bar_w+gap)
-        x1 = x0 + bar_w
-        bar_h = 0 if maxv==0 else int((v/maxv)*plot_h)
-        y0 = h - bottom - bar_h
-        draw.rectangle([x0,y0,x1,h-bottom], fill=(99,102,241,255))
-        # label (every ~5 bars)
-        if i%max(1,n//8 or 1)==0:
-            draw.text((x0, h-bottom+4), d[-4:], fill=(229,231,235,255), font=ImageFont.load_default())
-    # title
-    draw.text((left, 2), "Processed files per day", fill=(229,231,235,255), font=ImageFont.load_default())
-    img.save(path)
+def sparkline(nums):
+    if not nums: return ""
+    blocks = "▁▂▃▄▅▆▇█"
+    lo, hi = min(nums), max(nums)
+    if hi == lo: return blocks[0] * len(nums)
+    out = []
+    for x in nums:
+        idx = int((x - lo) / (hi - lo) * (len(blocks)-1) + 1e-6)
+        out.append(blocks[idx])
+    return "".join(out)
 
 def sys_summary():
     cpu = psutil.cpu_percent(interval=None)
@@ -200,7 +180,6 @@ def write_csv_report(rows, path):
         for ts, action, detail in rows:
             f.write(f"{ts},{action},{detail}\n")
 
-# Window
 size = tuple(SETTINGS.get("window_size", [1024,720]))
 window = sg.Window("Operion — Dashboard", layout, size=size, finalize=True)
 tabs: sg.TabGroup = window["-TABS-"]
@@ -209,17 +188,29 @@ tab_map = ["Automation","Analytics","Security","About/Help"]
 try:
     idx = tab_map.index(SETTINGS.get("last_tab","Automation"))
     tabs.SelectTab(idx)
-except:
-    tabs.SelectTab(0)
+except: 
+    try: tabs.SelectTab(0)
+    except: pass
 
-# Initial population
 log_line("INFO","Dashboard started")
 window["-AUTO-LOG-"].update("\n".join(tail_logs()))
-build_chart_png(chart_png); window["-CHART-"].update(filename=chart_png)
-window["-SYS-"].update(sys_summary())
 window["-SEC-LOG-"].update("\n".join(tail_logs()))
+window["-SYS-"].update(sys_summary())
 
-processed_rows = []
+def refresh_analytics():
+    c = counts_by_day()
+    if not c:
+        text = "No processed events yet."
+    else:
+        xs = sorted(c.keys())
+        ys = [c[k] for k in xs]
+        text = "Processed files per day:\n" + "\n".join(f"{x}: {c[x]}" for x in xs)
+        text += f"\n\nSparkline: {sparkline(ys)}"
+    window["-ANA-"].update(text)
+
+refresh_analytics()
+
+processed_rows = []  # (ts, "PROCESSED", filename)
 last_sys = time.time()
 
 while True:
@@ -266,8 +257,9 @@ while True:
             files.extend(glob.glob(str(Path(folder)/mask.strip())))
         if not files:
             sg.popup("No files found for pattern."); continue
-        total = len(files); step = max(1, int(100/max(1,total)))
-        window["-AUTO-LOG-"].update(""); processed_rows.clear()
+        total = len(files); step = max(1, int(100/total))
+        window["-AUTO-LOG-"].update("")
+        processed_rows.clear()
         for i,fp in enumerate(files, start=1):
             try:
                 name = os.path.basename(fp)
@@ -284,10 +276,10 @@ while True:
             except Exception as ex:
                 window["-AUTO-LOG-"].print(f"ERROR: {name} :: {ex}")
                 log_line("ERROR", f"{name} :: {ex}")
-            window["-P-"].update(min(100, int(i*step)))
+            window["-P-"].update(min(100, i*step))
             window.refresh()
         sg.popup_ok("Workflow complete.")
-        build_chart_png(chart_png); window["-CHART-"].update(filename=chart_png)
+        refresh_analytics()
 
     if ev == "Simulate Login Success":
         sg.popup_ok(record_login(True))
@@ -305,13 +297,15 @@ while True:
     if ev == "Set PIN":
         pin = vals.get("-PIN-VAL-","")
         if not pin:
-            SETTINGS["pin_hash"] = ""; SETTINGS["pin_enabled"] = False
+            SETTINGS["pin_hash"] = ""
+            SETTINGS["pin_enabled"] = False
             sg.popup_ok("PIN cleared (gate off).")
         else:
             SETTINGS["pin_hash"] = hashlib.sha256(pin.encode("utf-8")).hexdigest()
             SETTINGS["pin_enabled"] = True
             sg.popup_ok("PIN set (gate planned).")
 
+# persist window size + settings
 try:
     w,h = window.size
     SETTINGS["window_size"] = [w,h]
