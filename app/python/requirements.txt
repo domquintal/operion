@@ -1,3 +1,4 @@
 ﻿--extra-index-url https://PySimpleGUI.net/install
 PySimpleGUI
 psutil==5.9.8
+ttkbootstrap
