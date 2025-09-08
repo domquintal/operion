@@ -7,16 +7,16 @@ $Logs  = Join-Path $Repo "_logs"
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Operion — Dashboard" Width="720" Height="420"
+        Title="Operion — Dashboard" Width="880" Height="520"
         WindowStartupLocation="CenterScreen" Background="#0F172A" Foreground="#E5E7EB" FontFamily="Segoe UI">
   <Grid Margin="16">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <TextBlock Text="Operational Intelligence" FontSize="20" FontWeight="Bold" Grid.Row="0"/>
+    <TextBlock Text="Operational Intelligence" FontSize="22" FontWeight="Bold" Grid.Row="0"/>
     <Grid Grid.Row="1" Margin="0,12,0,12">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="1.2*"/>
       </Grid.ColumnDefinitions>
       <Border Grid.Column="0" CornerRadius="12" Padding="12" Background="#111827" Margin="0,0,12,0">
         <StackPanel>
@@ -33,12 +33,12 @@ $xaml = @"
       <Border Grid.Column="2" CornerRadius="12" Padding="12" Background="#111827">
         <StackPanel>
           <TextBlock Text="Latest Log" FontWeight="Bold"/>
-          <TextBlock x:Name="LatestTxt" TextWrapping="Wrap" />
+          <TextBox x:Name="LatestTxt" TextWrapping="Wrap" IsReadOnly="True" BorderThickness="0" Background="#111827"/>
         </StackPanel>
       </Border>
     </Grid>
     <DockPanel Grid.Row="2">
-      <Button x:Name="CloseBtn" Content="Close" Width="90" Height="30" DockPanel.Dock="Right"/>
+      <Button x:Name="CloseBtn" Content="Close" Width="100" Height="32" DockPanel.Dock="Right"/>
     </DockPanel>
   </Grid>
 </Window>
@@ -54,7 +54,7 @@ function Analyze {
   $now = Get-Date; $lastMin = $now.AddMinutes(-1)
   $beats = ($lines | Where-Object { $_ -match 'heartbeat' -and $_ -match '^\d{4}-\d{2}-\d{2}' -and ([datetime]($_.Substring(0,19))) -ge $lastMin }).Count
   $errs  = ($lines | Where-Object { $_ -match 'CRASH|ERROR|FAIL' -and $_ -match '^\d{4}-\d{2}-\d{2}' -and ([datetime]($_.Substring(0,19))) -ge $now.AddHours(-24) }).Count
-  $BeatTxt.Text = $beats.ToString(); $ErrTxt.Text = $errs.ToString(); $LatestTxt.Text = ($lines | Select-Object -Last 1)
+  $BeatTxt.Text = $beats.ToString(); $ErrTxt.Text = $errs.ToString(); $LatestTxt.Text = ($lines | Select-Object -Last 1) -join "`r`n"
 }
 $timer = New-Object Windows.Threading.DispatcherTimer; $timer.Interval=[TimeSpan]::FromSeconds(2)
 $timer.Add_Tick({ Analyze }); $timer.Start(); Analyze

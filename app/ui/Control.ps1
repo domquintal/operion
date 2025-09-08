@@ -1,4 +1,10 @@
-﻿$ErrorActionPreference = "Stop"
+﻿# Tray icon + toast
+Add-Type -AssemblyName System.Windows.Forms
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$notify.Icon = [System.Drawing.SystemIcons]::Information
+$notify.Visible = $true
+function Show-Note([string]$text){ try { if($Policy.notifications.enabled){ $notify.BalloonTipTitle = "Operion"; $notify.BalloonTipText = $text; $notify.ShowBalloonTip(2000) } } catch {} }
+$ErrorActionPreference = "Stop"
 Add-Type -AssemblyName PresentationFramework
 
 # Resolve paths RELATIVE TO THIS SCRIPT (two levels up = repo root)
@@ -134,7 +140,7 @@ $BtnSanity.Add_Click({ if(Test-Path $SanV){ Start-Process (Use-Shell) -ArgumentL
 $BtnUpdate.Add_Click({
 if($Policy.requireConfirmForUpdatePush -and
    [System.Windows.MessageBox]::Show("Run Update → Push now?","Confirm","YesNo","Question") -ne "Yes"){ Append "Update canceled."; return }if(Test-Path $Upd){
-    $Bar.IsIndeterminate=$true; $Out.Text=""; Append "Running update..."; Audit "update_push_start"; Show-Note("Update→Push started…"); Audit "update_push_start"; Show-Note("Update→Push started…")
+    $Bar.IsIndeterminate=$true; $Out.Text=""; Append "Running update..."; Audit "update_push_start"; Show-Note("Update→Push started…"); Audit "update_push_start"; Show-Note("Update→Push started…"); Audit "update_push_start"; Show-Note("Update→Push started…")
     $so=[IO.Path]::GetTempFileName(); $se=[IO.Path]::GetTempFileName()
     $p=Start-Process (Use-Shell) -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File', $Upd) -PassThru -WindowStyle Hidden -RedirectStandardOutput $so -RedirectStandardError $se
     $timer=New-Object Windows.Threading.DispatcherTimer; $timer.Interval=[TimeSpan]::FromMilliseconds(500)
@@ -172,5 +178,7 @@ $timerH.Start()
 Set-Status $false
 $BtnClose.Add_Click({ $timerH.Stop(); $win.Close() })
 $win.ShowDialog() | Out-Null
+
+
 
 
