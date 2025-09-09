@@ -1,4 +1,4 @@
-﻿import sqlite3, datetime, hashlib
+﻿import sqlite3, os, time, csv, json, datetime, hashlib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -13,58 +13,45 @@ def _log(msg:str):
     with open(LOGS / f"operion_{datetime.datetime.now():%Y%m%d}.log","a",encoding="utf-8") as f:
         f.write(f"{ts} ENGINE: {msg}\n")
 
-EXPECTED = {
-    "id"         : "INTEGER",
-    "domain"     : "TEXT",
-    "rule"       : "TEXT",
-    "dollar"     : "REAL DEFAULT 0.0",
-    "currency"   : "TEXT DEFAULT 'USD'",
-    "vendor"     : "TEXT",
-    "ref"        : "TEXT",
-    "description": "TEXT",
-    "file"       : "TEXT",
-    "rownum"     : "INTEGER DEFAULT 0",
-    "status"     : "TEXT DEFAULT 'New'",
-    "owner"      : "TEXT DEFAULT ''",
-    "created_at" : "TEXT",
-    "updated_at" : "TEXT",
-    "sla_due"    : "TEXT",
-    "dedup_hash" : "TEXT"
-}
-
-SELECT_LIST = "id,domain,rule,dollar,currency,vendor,ref,description,status,owner,created_at,updated_at,sla_due"
-
 def _migrate():
+    # Bring older DBs up to date by adding missing columns
     conn = sqlite3.connect(DBF); cur = conn.cursor()
-    cur.execute("""CREATE TABLE IF NOT EXISTS exceptions(
-        id INTEGER PRIMARY KEY AUTOINCREMENT
-    )""")
-    # discover columns
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exceptions'")
+    if not cur.fetchone():
+        conn.close(); return
     cur.execute("PRAGMA table_info(exceptions)")
-    have = {r[1] for r in cur.fetchall()}
-    # add any missing expected columns
-    for col, decl in EXPECTED.items():
-        if col not in have:
+    cols = [r[1] for r in cur.fetchall()]
+    def ensure(col, decl, default_marker=None, default_value=None):
+        if col not in cols:
             cur.execute(f"ALTER TABLE exceptions ADD COLUMN {col} {decl}")
+            if default_marker is not None:
+                cur.execute(f"UPDATE exceptions SET {col}=?", (default_value,))
+            cols.append(col)
+    # Add modern columns if missing
+    ensure("dollar",    "REAL", default_marker=True,  default_value=0.0)
+    ensure("currency",  "TEXT", default_marker=True,  default_value="USD")
+    ensure("owner",     "TEXT", default_marker=True,  default_value="")
+    ensure("sla_due",   "TEXT", default_marker=True,  default_value="")
+    ensure("dedup_hash","TEXT", default_marker=None)
     conn.commit(); conn.close()
 
 def init():
-    # create full table if brand new
     conn = sqlite3.connect(DBF); cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS exceptions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        domain TEXT, rule TEXT, dollar REAL DEFAULT 0.0, currency TEXT DEFAULT 'USD',
+        domain TEXT, rule TEXT, dollar REAL, currency TEXT,
         vendor TEXT, ref TEXT, description TEXT,
-        file TEXT, rownum INTEGER DEFAULT 0,
+        file TEXT, rownum INTEGER,
         status TEXT DEFAULT 'New', owner TEXT DEFAULT '',
         created_at TEXT, updated_at TEXT, sla_due TEXT,
-        dedup_hash TEXT
+        dedup_hash TEXT UNIQUE
     )""")
     conn.commit(); conn.close()
     _migrate()
 
 def _hash(*parts):
-    return hashlib.sha256(("|".join([str(x) for x in parts])).encode("utf-8")).hexdigest()
+    h = hashlib.sha256(("|".join([str(x) for x in parts])).encode("utf-8")).hexdigest()
+    return h
 
 def upsert_exc(domain, rule, dollar, currency, vendor, ref, description, file, rownum, sla_days=7):
     init()
@@ -73,7 +60,7 @@ def upsert_exc(domain, rule, dollar, currency, vendor, ref, description, file, r
     dh = _hash(domain, rule, vendor, ref, file, rownum, round(float(dollar or 0.0),2))
     conn = sqlite3.connect(DBF); cur = conn.cursor()
     try:
-        cur.execute(f"""INSERT OR IGNORE INTO exceptions
+        cur.execute("""INSERT OR IGNORE INTO exceptions
         (domain,rule,dollar,currency,vendor,ref,description,file,rownum,created_at,updated_at,sla_due,dedup_hash)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (domain,rule,float(dollar or 0.0),currency or "USD",vendor or "",ref or "",description or "",file or "",int(rownum or 0),
@@ -84,7 +71,7 @@ def upsert_exc(domain, rule, dollar, currency, vendor, ref, description, file, r
 
 def list_exceptions(filters=None):
     init()
-    q = f"SELECT {SELECT_LIST} FROM exceptions"
+    q = "SELECT id,domain,rule,dollar,currency,vendor,ref,description,status,owner,created_at,updated_at,sla_due FROM exceptions"
     params = []
     if filters:
         parts=[]
