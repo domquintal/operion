@@ -13,28 +13,6 @@ def _log(msg:str):
     with open(LOGS / f"operion_{datetime.datetime.now():%Y%m%d}.log","a",encoding="utf-8") as f:
         f.write(f"{ts} ENGINE: {msg}\n")
 
-def _migrate():
-    # Bring older DBs up to date by adding missing columns
-    conn = sqlite3.connect(DBF); cur = conn.cursor()
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exceptions'")
-    if not cur.fetchone():
-        conn.close(); return
-    cur.execute("PRAGMA table_info(exceptions)")
-    cols = [r[1] for r in cur.fetchall()]
-    def ensure(col, decl, default_marker=None, default_value=None):
-        if col not in cols:
-            cur.execute(f"ALTER TABLE exceptions ADD COLUMN {col} {decl}")
-            if default_marker is not None:
-                cur.execute(f"UPDATE exceptions SET {col}=?", (default_value,))
-            cols.append(col)
-    # Add modern columns if missing
-    ensure("dollar",    "REAL", default_marker=True,  default_value=0.0)
-    ensure("currency",  "TEXT", default_marker=True,  default_value="USD")
-    ensure("owner",     "TEXT", default_marker=True,  default_value="")
-    ensure("sla_due",   "TEXT", default_marker=True,  default_value="")
-    ensure("dedup_hash","TEXT", default_marker=None)
-    conn.commit(); conn.close()
-
 def init():
     conn = sqlite3.connect(DBF); cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS exceptions(
@@ -47,7 +25,6 @@ def init():
         dedup_hash TEXT UNIQUE
     )""")
     conn.commit(); conn.close()
-    _migrate()
 
 def _hash(*parts):
     h = hashlib.sha256(("|".join([str(x) for x in parts])).encode("utf-8")).hexdigest()
@@ -118,3 +95,4 @@ def export_csv(path):
     with open(path,"w",newline="",encoding="utf-8") as f:
         w = csv.writer(f); w.writerow(hdr)
         for r in rows: w.writerow(list(r))
+
