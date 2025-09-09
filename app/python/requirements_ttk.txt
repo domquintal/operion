@@ -1,0 +1,3 @@
+﻿ttkbootstrap
+psutil==5.9.8
+PyYAML==6.0.2

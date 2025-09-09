@@ -51,7 +51,7 @@ def main():
     store.init()
     style = tb.Style(theme=SET.get("theme","superhero"))
     win = tb.Window(title="Operion — Savings Command", themename=SET.get("theme","superhero"),
-                    size=tuple(SET.get("window_size",[1200,740])))
+                    size=f"{SET['window_size'][0]}x{SET['window_size'][1]}")
     nb = tb.Notebook(win, bootstyle="dark")
     nb.pack(fill=BOTH, expand=YES, padx=12, pady=12)
 
@@ -157,4 +157,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

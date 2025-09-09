@@ -1,69 +1,98 @@
-﻿from __future__ import annotations
-import sqlite3, os, time, yaml, csv, datetime
+﻿import sqlite3, os, time, csv, json, datetime, hashlib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
-DBF  = REPO / "app" / "python" / "engine" / "savings.db"
-RULES = REPO / "app" / "rules" / "default.yaml"
+REPO = Path(__file__).resolve().parents[2]
+APP  = REPO / "app"
+LOGS = REPO / "_logs"
+DBF  = Path(__file__).resolve().parent / "savings.db"
+DBF.parent.mkdir(parents=True, exist_ok=True)
+LOGS.mkdir(parents=True, exist_ok=True)
 
-def ensure_db():
-    DBF.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DBF)
-    cur = conn.cursor()
-    cur.execute("""
-      CREATE TABLE IF NOT EXISTS exceptions (
+def _log(msg:str):
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOGS / f"operion_{datetime.datetime.now():%Y%m%d}.log","a",encoding="utf-8") as f:
+        f.write(f"{ts} ENGINE: {msg}\n")
+
+def init():
+    conn = sqlite3.connect(DBF); cur = conn.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS exceptions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        domain TEXT,
-        rule TEXT,
-        amount REAL,
-        description TEXT,
-        src_file TEXT,
-        status TEXT DEFAULT 'New',
-        owner TEXT DEFAULT '',
-        created_at TEXT DEFAULT (datetime('now'))
-      )
-    """)
+        domain TEXT, rule TEXT, dollar REAL, currency TEXT,
+        vendor TEXT, ref TEXT, description TEXT,
+        file TEXT, rownum INTEGER,
+        status TEXT DEFAULT 'New', owner TEXT DEFAULT '',
+        created_at TEXT, updated_at TEXT, sla_due TEXT,
+        dedup_hash TEXT UNIQUE
+    )""")
     conn.commit(); conn.close()
 
-def load_rules():
-    with open(RULES, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+def _hash(*parts):
+    h = hashlib.sha256(("|".join([str(x) for x in parts])).encode("utf-8")).hexdigest()
+    return h
 
-def insert_exception(domain:str, rule:str, amount:float, description:str, src_file:str):
+def upsert_exc(domain, rule, dollar, currency, vendor, ref, description, file, rownum, sla_days=7):
+    init()
+    now = datetime.datetime.now()
+    sla_due = (now + datetime.timedelta(days=sla_days)).strftime("%Y-%m-%d")
+    dh = _hash(domain, rule, vendor, ref, file, rownum, round(float(dollar or 0.0),2))
     conn = sqlite3.connect(DBF); cur = conn.cursor()
-    cur.execute("INSERT INTO exceptions(domain,rule,amount,description,src_file) VALUES (?,?,?,?,?)",
-                (domain, rule, float(amount or 0), description, src_file))
-    conn.commit(); conn.close()
+    try:
+        cur.execute("""INSERT OR IGNORE INTO exceptions
+        (domain,rule,dollar,currency,vendor,ref,description,file,rownum,created_at,updated_at,sla_due,dedup_hash)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (domain,rule,float(dollar or 0.0),currency or "USD",vendor or "",ref or "",description or "",file or "",int(rownum or 0),
+         now.strftime("%Y-%m-%d %H:%M:%S"), now.strftime("%Y-%m-%d %H:%M:%S"), sla_due, dh))
+        conn.commit()
+    finally:
+        conn.close()
 
-def fetch_kpis():
+def list_exceptions(filters=None):
+    init()
+    q = "SELECT id,domain,rule,dollar,currency,vendor,ref,description,status,owner,created_at,updated_at,sla_due FROM exceptions"
+    params = []
+    if filters:
+        parts=[]
+        if "status" in filters: parts.append("status=?"); params.append(filters["status"])
+        if "domain" in filters: parts.append("domain=?"); params.append(filters["domain"])
+        if parts: q += " WHERE " + " AND ".join(parts)
+    q += " ORDER BY datetime(created_at) DESC"
     conn = sqlite3.connect(DBF); cur = conn.cursor()
-    cur.execute("SELECT COALESCE(SUM(amount),0) FROM exceptions WHERE status IN ('New','Triage')")
-    identified = cur.fetchone()[0] or 0
-    cur.execute("SELECT COALESCE(SUM(amount),0) FROM exceptions WHERE status='Approved'")
+    cur.execute(q, params or [])
+    rows = cur.fetchall(); conn.close()
+    return rows
+
+def kpis():
+    init()
+    conn = sqlite3.connect(DBF); cur = conn.cursor()
+    cur.execute("SELECT COALESCE(SUM(dollar),0) FROM exceptions")
+    total = cur.fetchone()[0] or 0
+    cur.execute("SELECT COALESCE(SUM(dollar),0) FROM exceptions WHERE status IN ('Approved','Realized')")
     approved = cur.fetchone()[0] or 0
     cur.execute("SELECT COUNT(*) FROM exceptions WHERE status IN ('New','Triage')")
     open_cnt = cur.fetchone()[0] or 0
     conn.close()
-    return identified, approved, open_cnt
+    return dict(identified=round(total,2), approved=round(approved,2), open=open_cnt)
 
-def fetch_exceptions(domain:str|None=None, status:str|None=None):
+def update_status(ids, status):
+    init()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DBF); cur = conn.cursor()
-    q = "SELECT id,domain,rule,amount,description,src_file,status,owner,created_at FROM exceptions WHERE 1=1"
-    args=[]
-    if domain: q += " AND domain=?"; args.append(domain)
-    if status: q += " AND status=?"; args.append(status)
-    q += " ORDER BY datetime(created_at) DESC"
-    cur.execute(q, args)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-def update_exception(id:int, *, status:str|None=None, owner:str|None=None):
-    conn = sqlite3.connect(DBF); cur = conn.cursor()
-    if status is not None and owner is not None:
-        cur.execute("UPDATE exceptions SET status=?, owner=? WHERE id=?", (status, owner, id))
-    elif status is not None:
-        cur.execute("UPDATE exceptions SET status=? WHERE id=?", (status, id))
-    elif owner is not None:
-        cur.execute("UPDATE exceptions SET owner=? WHERE id=?", (owner, id))
+    cur.executemany("UPDATE exceptions SET status=?, updated_at=? WHERE id=?", [(status, now, i) for i in ids])
     conn.commit(); conn.close()
+
+def update_owner(ids, owner):
+    init()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DBF); cur = conn.cursor()
+    cur.executemany("UPDATE exceptions SET owner=?, updated_at=? WHERE id=?", [(owner, now, i) for i in ids])
+    conn.commit(); conn.close()
+
+def export_csv(path):
+    init()
+    rows = list_exceptions()
+    hdr = ["id","domain","rule","dollar","currency","vendor","ref","description","status","owner","created_at","updated_at","sla_due"]
+    import csv
+    with open(path,"w",newline="",encoding="utf-8") as f:
+        w = csv.writer(f); w.writerow(hdr)
+        for r in rows: w.writerow(list(r))
+
