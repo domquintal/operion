@@ -1,0 +1,160 @@
+﻿import os, sys, json, datetime, psutil
+from pathlib import Path
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
+from engine import store, detectors
+
+REPO = Path(__file__).resolve().parents[2]
+APP  = REPO / "app"
+PY   = APP / "python"
+LOGS = REPO / "_logs"
+SETF = PY / "settings_ttk.json"
+
+def load_json(p, fallback):
+    try: return json.loads(Path(p).read_text(encoding="utf-8"))
+    except: return fallback
+
+SET = load_json(SETF, {"window_size":[1200,740],"last_tab":"Savings","theme":"superhero"})
+
+def save_settings(win):
+    try:
+        w = win.winfo_width(); h = win.winfo_height()
+        SET["window_size"] = [w,h]
+        SETF.write_text(json.dumps(SET, indent=2), encoding="utf-8")
+    except: pass
+
+def cpu_mem_line():
+    cpu = psutil.cpu_percent(interval=None)
+    mem = psutil.virtual_memory().percent
+    return f"CPU {cpu:.0f}%   MEM {mem:.0f}%"
+
+def refresh_kpis(lbl_ident, lbl_appr, lbl_open):
+    k = store.kpis()
+    lbl_ident.configure(text=f"Identified $ {k['identified']:.2f}")
+    lbl_appr.configure(text=f"Approved $ {k['approved']:.2f}")
+    lbl_open.configure(text=f"Open {k['open']}")
+
+def load_table(tree, domain=None, status=None):
+    for i in tree.get_children(): tree.delete(i)
+    rows = store.list_exceptions({"domain":domain} if domain else None)
+    for r in rows:
+        rid, dom, rule, dollar, cur, vendor, ref, desc, st, owner, created, updated, sla = r
+        if status and st!=status: continue
+        tree.insert("", END, iid=str(rid), values=(dom, rule, f"{dollar:.2f}", cur, vendor, ref, desc[:120], st, owner, created, sla))
+
+def export_csv():
+    out = PY / ("savings_export_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv")
+    store.export_csv(str(out))
+    tb.dialogs.Messagebox.show_info(f"Exported:\n{out}")
+
+def main():
+    store.init()
+    style = tb.Style(theme=SET.get("theme","superhero"))
+    win = tb.Window(title="Operion — Savings Command", themename=SET.get("theme","superhero"),
+                    size=tuple(SET.get("window_size",[1200,740])))
+    nb = tb.Notebook(win, bootstyle="dark")
+    nb.pack(fill=BOTH, expand=YES, padx=12, pady=12)
+
+    # ===== Savings Tab =====
+    frm = tb.Frame(nb); nb.add(frm, text="Savings")
+    top = tb.Frame(frm); top.pack(fill=X, pady=6)
+    k1 = tb.Label(top, text="Identified $ 0.00", font=("Segoe UI", 12, "bold")); k1.pack(side=LEFT, padx=6)
+    k2 = tb.Label(top, text="Approved $ 0.00",  font=("Segoe UI", 12, "bold")); k2.pack(side=LEFT, padx=6)
+    k3 = tb.Label(top, text="Open 0",          font=("Segoe UI", 12, "bold")); k3.pack(side=LEFT, padx=6)
+    refresh_kpis(k1,k2,k3)
+
+    opts = tb.Frame(frm); opts.pack(fill=X, pady=4)
+    domain_cb = tb.Combobox(opts, values=["","legal","hr","transport","accounting"], width=18)
+    domain_cb.set("")
+    status_cb = tb.Combobox(opts, values=["","New","Triage","Approved","Realized","Dismissed"], width=18)
+    status_cb.set("")
+    tb.Button(opts, text="Refresh", bootstyle=PRIMARY, command=lambda: load_table(tree, domain_cb.get() or None, status_cb.get() or None)).pack(side=RIGHT,padx=4)
+    domain_cb.pack(side=LEFT, padx=4); status_cb.pack(side=LEFT, padx=4)
+
+    cols = ("domain","rule","dollar","cur","vendor","ref","desc","status","owner","created","sla_due")
+    tree = tb.Treeview(frm, columns=cols, show="headings", bootstyle="dark")
+    for c,w in zip(cols,(90,120,80,50,140,120,340,100,120,140,100)):
+        tree.heading(c, text=c.upper()); tree.column(c, width=w, stretch=True)
+    tree.pack(fill=BOTH, expand=YES, pady=6)
+    load_table(tree)
+
+    act = tb.Frame(frm); act.pack(fill=X, pady=4)
+    owner_e = tb.Entry(act, width=24)
+    status_set = tb.Combobox(act, values=["New","Triage","Approved","Realized","Dismissed"], width=18); status_set.set("Triage")
+    def _apply_owner():
+        ids = [int(i) for i in tree.selection()]
+        if not ids: return
+        store.update_owner(ids, owner_e.get().strip())
+        load_table(tree, domain_cb.get() or None, status_cb.get() or None)
+    def _apply_status():
+        ids = [int(i) for i in tree.selection()]
+        if not ids: return
+        store.update_status(ids, status_set.get())
+        refresh_kpis(k1,k2,k3)
+        load_table(tree, domain_cb.get() or None, status_cb.get() or None)
+    tb.Button(act, text="Export CSV", command=export_csv).pack(side=RIGHT, padx=4)
+    tb.Button(act, text="Set Status", command=_apply_status).pack(side=RIGHT, padx=4)
+    status_set.pack(side=RIGHT, padx=4)
+    tb.Button(act, text="Assign Owner", command=_apply_owner).pack(side=LEFT, padx=4)
+    owner_e.pack(side=LEFT, padx=4)
+
+    # ===== Ingestion Tab =====
+    ing = tb.Frame(nb); nb.add(ing, text="Ingest")
+    tb.Label(ing, text="Drop CSVs then click Ingest Now", font=("Segoe UI", 12)).pack(anchor=W, padx=6, pady=6)
+    paths = tb.Frame(ing); paths.pack(fill=X)
+    def _open(p): os.startfile(str(p))
+    for d in ("invoices","hr","transport","accounting"):
+        row = tb.Frame(paths); row.pack(fill=X, pady=2)
+        tb.Label(row, text=d, width=12).pack(side=LEFT, padx=6)
+        tb.Button(row, text="Open in/", command=lambda d=d:_open(REPO/"app"/"data"/d/"in")).pack(side=LEFT, padx=2)
+        tb.Button(row, text="Open processed/", command=lambda d=d:_open(REPO/"app"/"data"/d/"_processed")).pack(side=LEFT, padx=2)
+    def _ingest():
+        detectors.ingest_all()
+        refresh_kpis(k1,k2,k3); load_table(tree, domain_cb.get() or None, status_cb.get() or None)
+        tb.dialogs.Messagebox.show_info("Ingestion complete.")
+    tb.Button(ing, text="Ingest Now", bootstyle=SUCCESS, command=_ingest).pack(anchor=W, padx=6, pady=8)
+
+    # ===== Analytics Tab =====
+    ana = tb.Frame(nb); nb.add(ana, text="Analytics")
+    sysline = tb.Label(ana, text=cpu_mem_line(), font=("Segoe UI", 11)); sysline.pack(anchor=W, padx=6, pady=6)
+
+    # ===== Settings Tab =====
+    stg = tb.Frame(nb); nb.add(stg, text="Settings")
+    theme_cb = tb.Combobox(stg, values=tb.Style().theme_names(), width=22); theme_cb.set(SET.get("theme","superhero"))
+    def _apply_theme():
+        SET["theme"] = theme_cb.get(); tb.Style().theme_use(SET["theme"])
+    tb.Label(stg, text="Theme").pack(anchor=W, padx=6,pady=4); theme_cb.pack(anchor=W, padx=6)
+    tb.Button(stg, text="Apply Theme", command=_apply_theme).pack(anchor=W, padx=6, pady=4)
+    tb.Button(stg, text="Open rules.yaml", command=lambda: os.startfile(str(REPO/"app"/"rules"/"default.yaml"))).pack(anchor=W, padx=6, pady=4)
+    tb.Button(stg, text="Open Logs", command=lambda: os.startfile(str(LOGS))).pack(anchor=W, padx=6, pady=4)
+
+    # ===== About =====
+    abo = tb.Frame(nb); nb.add(abo, text="About")
+    ver = json.loads((APP/"version.json").read_text(encoding="utf-8"))
+    tb.Label(abo, text="OPERION", font=("Segoe UI", 22, "bold")).pack(pady=4)
+    tb.Label(abo, text="Automation. Corporate Intelligence. Solutions.", font=("Segoe UI", 11)).pack()
+    tb.Label(abo, text=f"Version v{ver.get('version')} · build {ver.get('build')}", font=("Segoe UI", 10)).pack(pady=4)
+
+    # timer for sys line
+    def tick():
+        try: sysline.configure(text=cpu_mem_line())
+        except: pass
+        win.after(1500, tick)
+    tick()
+
+    # select last tab
+    tabs = {"Savings":0,"Ingest":1,"Analytics":2,"Settings":3,"About":4}
+    try: nb.select(tabs.get(SET.get("last_tab","Savings"),0))
+    except: pass
+    def on_tab_changed(_):
+        # remember tab name
+        idx = nb.index(nb.select()); name = list(tabs.keys())[idx]
+        SET["last_tab"] = name
+    nb.bind("<<NotebookTabChanged>>", on_tab_changed)
+
+    win.protocol("WM_DELETE_WINDOW", lambda: (save_settings(win), win.destroy()))
+    win.mainloop()
+
+if __name__ == "__main__":
+    main()
+
