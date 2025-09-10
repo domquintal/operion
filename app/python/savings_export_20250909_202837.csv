@@ -1,0 +1,6 @@
+id,domain,rule,dollar,currency,vendor,ref,description,status,owner,created_at,updated_at,sla_due
+1,legal,rate_over_cap,850.0,USD,Firm A,INV-1001,Partner billed 2h @ $875 cap $450,New,,2025-09-09 20:27:52,2025-09-09 20:27:52,2025-09-16
+2,legal,duplicate_invoice,300.0,USD,Firm A,INV-1001,Potential duplicate detected,New,,2025-09-09 20:27:52,2025-09-09 20:27:52,2025-09-16
+3,hr,overtime_over_cap,120.0,USD,E123,2025-09-08,10h logged vs cap 8h,New,,2025-09-09 20:27:52,2025-09-09 20:27:52,2025-09-16
+4,transport,fuel_surcharge_over_max,0.0,USD,CarrierX,33.5,Fuel surcharge 33.5% > 28%,New,,2025-09-09 20:27:52,2025-09-09 20:27:52,2025-09-16
+5,accounting,duplicate_ap_invoice,995.99,USD,VendorZ,AP-9009,Duplicate within ±1.00,New,,2025-09-09 20:27:52,2025-09-09 20:27:52,2025-09-16
