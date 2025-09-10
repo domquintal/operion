@@ -1,0 +1,73 @@
+﻿<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<title>Operion Dashboard — Demo</title><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>html,body{background:#0b0f1a}</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+const C={p:"#ff3ea5",b:"#28d7ff",u:"#8a7dff"};
+const BG={background:adial-gradient(900px 600px at -10% -10%, 20, transparent 55%),+adial-gradient(1000px 700px at 110% -20%, 24, transparent 55%),+linear-gradient(180deg,#0b0f1a 0%,#0d1120 100%)};
+const Glass=({className="",children})=>(<div className={"relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl "+className}><div className="pointer-events-none absolute inset-0 rounded-2xl" style={{background:"radial-gradient(1200px 600px at -10% -30%, rgba(255,255,255,0.18), transparent 40%),radial-gradient(1200px 600px at 110% -30%, rgba(255,255,255,0.10), transparent 40%)"}}/>{children}</div>);
+function Spark({points,h=44}){const w=140,max=Math.max(...points)||1,min=Math.min(...points)||0;const n=v=>((v-min)/(max-min||1))*(h-6)+3,s=w/Math.max(1,points.length-1);const d=points.map((v,i)=>${i===0?"M":"L"},).join(" ");return(<svg width={w} height={h} className="overflow-visible"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0%" stopColor={C.p}/><stop offset="50%" stopColor={C.u}/><stop offset="100%" stopColor={C.b}/></linearGradient></defs><path d={d} fill="none" stroke="url(#g)" strokeWidth="2.2"/></svg>)}
+const useTick=(run)=>{const [t,setT]=useState(0);useEffect(()=>{if(!run)return;const id=setInterval(()=>setT(x=>x+1),1500);return()=>clearInterval(id)},[run]);return t};
+function useMetrics(run){const t=useTick(run),j=(n,a)=>Math.max(0,n+(Math.sin(t/2+n)*a+(Math.random()-0.5)*a));return{cpu:Math.min(100,Math.round(j(18,8))),mem:Math.min(100,Math.round(j(42,6))),net:Math.round(j(120,30)),threats:Math.round(j(0,1.2))+(Math.random()>0.85?1:0)}}
+const cap10=a=>a.slice(0,10);
+const mkPro=(s=0)=>Array.from({length:16},(_,i)=>({id:i+1,name:proc_,cpu:(Math.random()*(i+2+s)).toFixed(1)+"%",mem:(16+Math.random()*600+i*7).toFixed(0)+" MB",status:Math.random()>0.1?"OK":"Watch"}));
+const mkNet=()=>Array.from({length:15},(_,i)=>({id:i+1,host:10.0.0.,port:[22,80,443,3000,5173][i%5],tx:(Math.random()*8+i*0.1).toFixed(2)+" MB/s",rx:(Math.random()*5+i*0.08).toFixed(2)+" MB/s",state:Math.random()>0.08?"ESTABLISHED":"NEW"}));
+function Operion(){const[run,setRun]=useState(true),[pinOK,setPinOK]=useState(false),[pin,setPin]=useState(""),[spark,setSpark]=useState([14,16,18,22,21,25,31,29,35,28,33]);const M=useMetrics(run);
+useEffect(()=>{if(!run)return;setSpark(s=>[...s.slice(-15),Math.max(10,Math.min(50,s[s.length-1]+(Math.random()-0.4)*8))])},[M.cpu,run]);
+const pro=useMemo(()=>cap10(mkPro(M.cpu)),[M.cpu]);const net=useMemo(()=>cap10(mkNet()),[M.net]);
+return(<div className="min-h-screen w-full text-white" style={BG}>
+<div className="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur-xl">
+ <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
+  <div className="flex items-center gap-3">
+   <div className="h-9 w-9 rounded-xl" style={{background:conic-gradient(from 210deg, , , ),filter:"drop-shadow(0 0 10px rgba(40,215,255,0.55))"}}/>
+   <div className="leading-tight"><div className="text-sm uppercase tracking-widest text-white/70">Operion</div><div className="text-lg font-semibold">Dashboard</div></div>
+  </div>
+  <div className="flex items-center gap-3">
+   <input placeholder="Search" className="w-56 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:ring-2 focus:ring-cyan-400/40"/>
+   <button onClick={()=>setRun(r=>!r)} className={ounded-xl px-4 py-2 text-sm font-semibold transition }>{run?"Pause":"Resume"}</button>
+  </div>
+ </div>
+</div>
+<div className="mx-auto grid max-w-7xl grid-cols-12 gap-5 px-5 py-6">
+ <div className="col-span-12 xl:col-span-8 flex flex-col gap-5">
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+   <Glass className="p-4"><div className="text-xs uppercase tracking-widest text-white/60">CPU</div><div className="mt-2 flex items-end justify-between"><div className="text-3xl font-bold">{M.cpu}%</div><Spark points={spark}/></div><div className="mt-2 text-xs text-white/50">Live</div></Glass>
+   <Glass className="p-4"><div className="text-xs uppercase tracking-widest text-white/60">Memory</div><div className="mt-2 flex items-end justify-between"><div className="text-3xl font-bold">{M.mem}%</div><Spark points={spark.map(v=>60-(v%20))}/></div><div className="mt-2 text-xs text-white/50">Working set</div></Glass>
+   <Glass className="p-4"><div className="text-xs uppercase tracking-widest text-white/60">Network</div><div className="mt-2 flex items-end justify-between"><div className="text-3xl font-bold">{M.net} Mbps</div><Spark points={spark.map(v=>v+(Math.random()*8-4))}/></div><div className="mt-2 text-xs text-white/50">Throughput</div></Glass>
+   <Glass className="p-4"><div className="text-xs uppercase tracking-widest text-white/60">Threats</div><div className="mt-2 flex items-end justify-between"><div className={	ext-3xl font-bold }>{M.threats}</div><Spark points={spark.map(v=>Math.max(0,Math.round((v%7)-2)))}/></div><div className="mt-2 text-xs text-white/50">Last 60s</div></Glass>
+  </div>
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+   <Glass className="p-5"><div className="mb-4 flex items-center justify-between"><div className="text-sm font-semibold tracking-wide">Recent Activity</div><div className="text-xs text-white/50">Auto refresh</div></div>
+    <ul className="space-y-3">{[{t:"Config updated",d:"operion.config saved & reloaded"},{t:"Pipeline",d:"ingestion -> transform -> store OK"},{t:"Auth",d:"admin signed in (2FA)"},{t:"Alert",d:"rate limit spike mitigated"},{t:"Updater",d:"checked Git - no changes"}].map((x,i)=>(<li key={i} className="flex items-start gap-3"><span className="mt-1 h-2.5 w-2.5 rounded-full" style={{background:adial-gradient(circle, , ),filter:"drop-shadow(0 0 6px rgba(40,215,255,.8))"}}/><div><div className="text-sm font-medium">{x.t}</div><div className="text-xs text-white/60">{x.d}</div></div></li>))}</ul>
+   </Glass>
+   <Glass className="p-5"><div className="mb-4 flex items-center justify-between"><div className="text-sm font-semibold tracking-wide">Log Tail (10)</div><button className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs">Export</button></div>
+    <div className="h-48 overflow-auto rounded-xl border border-white/5 bg-black/30 p-3 font-mono text-[11px] leading-relaxed">{Array.from({length:10},(_,i)=>(<div key={i} className="text-white/80">[{new Date().toLocaleTimeString()}] beat ok · cpu={M.cpu}% mem={M.mem}% net={M.net}mbps</div>))}</div>
+   </Glass>
+  </div>
+  <Glass className="p-5"><div className="mb-4 flex items-center justify-between"><div className="text-sm font-semibold tracking-wide">Processes (Top 10)</div><div className="text-xs text-white/60">CPU sort</div></div>
+   <div className="overflow-auto"><table className="w-full border-separate border-spacing-y-2"><thead><tr className="text-left text-xs uppercase tracking-widest text-white/60"><th className="px-3 py-2">Name</th><th className="px-3 py-2">CPU</th><th className="px-3 py-2">Memory</th><th className="px-3 py-2">Status</th></tr></thead>
+    <tbody>{useMemo(()=>pro,[pro]).map(p=>(<tr key={p.id} className="text-sm"><td className="px-3 py-2"><div className="rounded-xl bg-white/5 px-3 py-1.5">{p.name}</div></td><td className="px-3 py-2">{p.cpu}</td><td className="px-3 py-2">{p.mem}</td><td className="px-3 py-2"><span className={ounded-lg px-2 py-1 text-xs }>{p.status}</span></td></tr>))}</tbody></table></div>
+  </Glass>
+ </div>
+ <div className="col-span-12 xl:col-span-4 flex flex-col gap-5">
+  <Glass className="p-5"><div className="mb-4 flex items-center justify-between"><div className="text-sm font-semibold tracking-wide">Connections (Top 10)</div><div className="text-xs text-white/60">Live</div></div>
+   <div className="space-y-2">{net.map(n=>(<div key={n.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2"><div className="flex items-center gap-3"><div className="h-2 w-2 rounded-full" style={{background:n.state==="ESTABLISHED"?C.b:C.p,boxShadow:  0 10px }}/><div className="text-sm">{n.host}:{n.port}</div></div><div className="text-xs text-white/70">TX {n.tx} · RX {n.rx} · {n.state}</div></div>))}</div>
+  </Glass>
+  <Glass className="p-5"><div className="mb-4 text-sm font-semibold tracking-wide">Quick Actions</div>
+   <div className="grid grid-cols-2 gap-3">{["Start Operion","Restart Modules","Rotate API Keys","Tail Logs","Check Updates","Open operion.tech"].map(x=>(<button key={x} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm hover:bg-white/10 active:scale-[.99]">{x}</button>))}</div>
+  </Glass>
+  <Glass className="p-5"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-semibold tracking-wide">Status</div><span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs">{run?"Running":"Paused"}</span></div>
+   <div className="text-xs text-white/70 leading-relaxed">Build <span className="font-semibold">Operion Dashboard Demo</span> · 30-day logs · Default PIN 0000</div>
+  </Glass>
+ </div>
+</div>
+{!pinOK&&(<div className="fixed inset-0 z-40 grid place-items-center bg-black/70 backdrop-blur-xl"><div className="w-[92%] max-w-md"><Glass className="p-6"><div className="mb-1 text-sm uppercase tracking-widest text-white/60">Secure View</div><div className="text-2xl font-bold">Enter PIN to Unlock</div><div className="mt-5 flex gap-3"><input autoFocus type="password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="0000" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 outline-none placeholder:text-white/40 focus:ring-2 focus:ring-pink-400/40"/><button onClick={()=>setPinOK(pin==="0000")} className="rounded-xl bg-gradient-to-r from-pink-500 to-cyan-400 px-5 py-2 font-semibold text-black">Unlock</button></div><div className="mt-3 text-xs text-white/60">Default PIN is 0000 (change later).</div></Glass></div></div>)}
+<div className="mx-auto max-w-7xl px-5 pb-10 text-xs text-white/50">Operion · One-screen dashboard · Glass/Gradient theme.</div>
+</div>)}
+const root=ReactDOM.createRoot(document.getElementById("root"));root.render(<Operion/>);
+</script></body></html>
