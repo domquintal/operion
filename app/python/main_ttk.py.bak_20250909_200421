@@ -152,11 +152,7 @@ def main():
 
     # detail panel
     tb.Label(rightpane, text="Details", font=("Segoe UI", 12, "bold")).pack(anchor=W, padx=6, pady=6)
-    try:
-        details = tb.ScrolledText(rightpane, height=16)
-    except Exception:
-        from tkinter.scrolledtext import ScrolledText as TkScrolledText
-        details = TkScrolledText(rightpane, height=16)
+    details = tb.ScrolledText(rightpane, height=16, autohide=True)
     details.pack(fill=BOTH, expand=YES, padx=6)
     details.configure(state="disabled")
 
@@ -268,4 +264,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
