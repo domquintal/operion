@@ -39,17 +39,14 @@ def _migrate():
     cur.execute("""CREATE TABLE IF NOT EXISTS exceptions(
         id INTEGER PRIMARY KEY AUTOINCREMENT
     )""")
-    # discover columns
     cur.execute("PRAGMA table_info(exceptions)")
     have = {r[1] for r in cur.fetchall()}
-    # add any missing expected columns
     for col, decl in EXPECTED.items():
         if col not in have:
             cur.execute(f"ALTER TABLE exceptions ADD COLUMN {col} {decl}")
     conn.commit(); conn.close()
 
 def init():
-    # create full table if brand new
     conn = sqlite3.connect(DBF); cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS exceptions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,

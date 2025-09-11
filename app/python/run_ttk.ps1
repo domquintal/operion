@@ -2,7 +2,7 @@
 $ErrorActionPreference="Stop"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $venv = Join-Path $Here ".venv"
-if(-not (Test-Path $venv)){ & py -m venv $venv }
+if(-not (Test-Path $venv)) { & py -m venv $venv }
 $pex = Join-Path $venv "Scripts\python.exe"
 if(-not $NoInstall){
   & $pex -m pip install --upgrade pip

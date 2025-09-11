@@ -10,22 +10,23 @@ PY   = APP / "python"
 LOGS = REPO / "_logs"
 SETF = PY / "settings_ttk.json"
 
+THEME = "darkly"  # fixed; no theme switching
+
 def load_json(p, fallback):
     try:
-        s = Path(p).read_text(encoding="utf-8-sig")
-        s = s.lstrip("\\ufeff").strip()
+        s = Path(p).read_text(encoding="utf-8-sig").lstrip("\ufeff").strip()
         return json.loads(s)
     except Exception:
         return fallback
 
-# Keep only window size + last tab; force fixed visual theme
-SET = load_json(SETF, {"window_size":[1200,760],"last_tab":"Savings"})
+SET = load_json(SETF, {"window_size":[1200,740],"last_tab":"Savings"})
 
 def save_settings(win):
     try:
         SET["window_size"] = [win.winfo_width(), win.winfo_height()]
         SETF.write_text(json.dumps(SET, indent=2), encoding="utf-8")
-    except: pass
+    except Exception:
+        pass
 
 def cpu_mem_line():
     cpu = psutil.cpu_percent(interval=None)
@@ -45,22 +46,24 @@ STATUS_COLORS = {
     "Realized":  ("#14b8a6", "#0B1220"),
     "Dismissed": ("#475569", "#E5E7EB")
 }
+
 CURRENT_ROWS = {}
 
 def load_table(tree, detail_text, domain=None, status=None):
-    for i in tree.get_children(): tree.delete(i)
+    for i in tree.get_children():
+        tree.delete(i)
     CURRENT_ROWS.clear()
     rows = store.list_exceptions({"domain":domain} if domain else None)
     alt = False
     for r in rows:
-        # id,domain,rule,dollar,currency,vendor,ref,description,status,owner,created_at,updated_at,sla_due
         rid, dom, rule, dollar, cur, vendor, ref, desc, st, owner, created, updated, sla = r
         if status and st != status:
             continue
         vals = (dom, rule, f"{dollar:.2f}", cur, vendor, ref, (desc or "")[:140], st, owner, created, sla)
-        tags = []
-        if st in STATUS_COLORS: tags.append(f"st_{st}")
-        tags.append("odd" if alt else "even")
+        taglist = []
+        if st in STATUS_COLORS:
+            taglist.append(f"st_{st}")
+        taglist.append("odd" if alt else "even")
         alt = not alt
         iid = str(rid)
         CURRENT_ROWS[iid] = {
@@ -68,38 +71,18 @@ def load_table(tree, detail_text, domain=None, status=None):
             "vendor": vendor, "ref": ref, "description": desc, "status": st,
             "owner": owner, "created_at": created, "updated_at": updated, "sla_due": sla
         }
-        tree.insert("", END, iid=iid, values=vals, tags=tuple(tags))
-
-    detail_text.configure(state="normal"); detail_text.delete("1.0", END)
-    detail_text.insert("1.0", "Select a row to see details →")
-    detail_text.configure(state="disabled")
-
-def ensure_seed_if_empty():
-    try:
-        k = store.kpis()
-        if (k.get("identified",0) or 0) == 0 and (k.get("open",0) or 0) == 0:
-            from engine.seed_demo import seed
-            seed()
-    except Exception as ex:
-        pass
+        tree.insert("", END, iid=iid, values=vals, tags=tuple(taglist))
+    detail_text.configure(state="normal"); detail_text.delete("1.0", END); detail_text.insert("1.0", "Select a row to see details →"); detail_text.configure(state="disabled")
 
 def main():
     store.init()
-    ensure_seed_if_empty()
+    style = tb.Style(theme=THEME)
+    win = tb.Window(title="Operion — Savings Command", themename=THEME, size=tuple(SET.get("window_size",[1200,740])))
 
-    # Force a crisp dark theme; no theme picker exposed
-    style = tb.Style(theme="darkly")
-    win = tb.Window(
-        title="Operion — Savings Command",
-        themename="darkly",
-        size=tuple(SET.get("window_size", [1200,760]))
-    )
-
-    # Header (brand left / actions right)
-    head = tb.Frame(win, bootstyle=PRIMARY)
-    head.pack(fill=X)
+    # Header
+    head = tb.Frame(win, bootstyle=PRIMARY); head.pack(fill=X)
     left = tb.Frame(head, bootstyle=PRIMARY); left.pack(side=LEFT, padx=12, pady=8)
-    right= tb.Frame(head, bootstyle=PRIMARY); right.pack(side=RIGHT, padx=12, pady=8)
+    right = tb.Frame(head, bootstyle=PRIMARY); right.pack(side=RIGHT, padx=12, pady=8)
 
     ver = load_json(APP/"version.json", {"version":"0.0.0","build":"NA"})
     tb.Label(left, text="OPERION", font=("Segoe UI", 18, "bold"), foreground="#0B1220").pack(anchor=W)
@@ -107,47 +90,36 @@ def main():
              font=("Segoe UI", 9), foreground="#0B1220").pack(anchor=W)
 
     def _ingest_now():
-        detectors.ingest_all(); refresh_kpis(k1,k2,k3)
+        detectors.ingest_all()
+        refresh_kpis(k1,k2,k3)
         load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)
         tb.dialogs.Messagebox.show_info("Ingestion complete.")
 
-    def _seed_now():
-        from engine.seed_demo import seed
-        n = seed()
-        refresh_kpis(k1,k2,k3); load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)
-        tb.dialogs.Messagebox.show_info(f"Seeded {n} demo rows." if n else "Already had data; nothing to seed.")
-
-    tb.Button(right, text="Seed Demo",  bootstyle=INFO,    command=_seed_now).pack(side=RIGHT, padx=6)
-    tb.Button(right, text="Export CSV", bootstyle=SECONDARY,
-              command=lambda: (store.export_csv(str(PY / ("savings_export_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"))),
-                               tb.dialogs.Messagebox.show_info("Exported to app\\python"))).pack(side=RIGHT, padx=6)
     tb.Button(right, text="Ingest Now", bootstyle=SUCCESS, command=_ingest_now).pack(side=RIGHT, padx=6)
+    tb.Button(right, text="Export CSV", command=lambda: (store.export_csv(str(PY / ("savings_export_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"))), tb.dialogs.Messagebox.show_info("Exported to app\\python"))).pack(side=RIGHT, padx=6)
 
-    # Content notebook (Savings / Analytics / About)
+    # Notebook
     nb = tb.Notebook(win, bootstyle="dark"); nb.pack(fill=BOTH, expand=YES, padx=12, pady=12)
 
-    # ===== Savings tab =====
+    # Savings
     frm = tb.Frame(nb); nb.add(frm, text="Savings")
-
-    # KPI cards
     cards = tb.Frame(frm); cards.pack(fill=X)
     def _card(parent, title):
-        f = tb.Labelframe(parent, text=title, bootstyle=INFO); f.pack(side=LEFT, padx=6, pady=6, fill=X, expand=YES)
-        val = tb.Label(f, text="0", font=("Segoe UI", 16, "bold")); val.pack(anchor=W, padx=8, pady=8); return val
+        f = tb.Labelframe(parent, text=title, bootstyle=INFO)
+        f.pack(side=LEFT, padx=6, pady=6, fill=X, expand=YES)
+        val = tb.Label(f, text="0", font=("Segoe UI", 16, "bold")); val.pack(anchor=W, padx=8, pady=8)
+        return val
     k1 = _card(cards, "Identified"); k2 = _card(cards, "Approved"); k3 = _card(cards, "Open")
     refresh_kpis(k1,k2,k3)
 
-    # Filters
     opts = tb.Frame(frm); opts.pack(fill=X, pady=4)
     domain_cb = tb.Combobox(opts, values=["","legal","hr","transport","accounting"], width=18); domain_cb.set("")
     status_cb = tb.Combobox(opts, values=["","New","Triage","Approved","Realized","Dismissed"], width=18); status_cb.set("")
-    tb.Button(opts, text="Refresh", bootstyle=PRIMARY,
-              command=lambda: load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)).pack(side=RIGHT, padx=4)
+    tb.Button(opts, text="Refresh", bootstyle=PRIMARY, command=lambda: load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)).pack(side=RIGHT, padx=4)
     domain_cb.pack(side=LEFT, padx=4); status_cb.pack(side=LEFT, padx=4)
 
-    # Split: table + details
     split = tb.Panedwindow(frm, orient=HORIZONTAL); split.pack(fill=BOTH, expand=YES, pady=6)
-    leftpane  = tb.Frame(split); rightpane = tb.Frame(split)
+    leftpane = tb.Frame(split); rightpane = tb.Frame(split)
     split.add(leftpane, weight=3); split.add(rightpane, weight=2)
 
     cols = ("domain","rule","dollar","cur","vendor","ref","desc","status","owner","created","sla_due")
@@ -156,33 +128,25 @@ def main():
         tree.heading(c, text=c.upper()); tree.column(c, width=w, stretch=True)
     tree.pack(fill=BOTH, expand=YES)
 
-    # Detail panel (remove autohide; plain ScrolledText)
-    details = tb.ScrolledText(rightpane, height=16)
     tb.Label(rightpane, text="Details", font=("Segoe UI", 12, "bold")).pack(anchor=W, padx=6, pady=6)
-    details.pack(fill=BOTH, expand=YES, padx=6); details.configure(state="disabled")
+    # NOTE: no 'autohide' kwarg to avoid TclError
+    details = tb.ScrolledText(rightpane, height=16)
+    details.pack(fill=BOTH, expand=YES, padx=6)
+    details.configure(state="disabled")
 
-    # Actions
     act = tb.Frame(frm); act.pack(fill=X, pady=4)
     owner_e = tb.Entry(act, width=24)
     status_set = tb.Combobox(act, values=["New","Triage","Approved","Realized","Dismissed"], width=18); status_set.set("Triage")
     def _selection_ids(): return [int(i) for i in tree.selection()]
     def _apply_owner():
-        ids = _selection_ids()
-        if not ids: return
-        store.update_owner(ids, owner_e.get().strip())
-        load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)
+        ids = _selection_ids(); if not ids: return
+        store.update_owner(ids, owner_e.get().strip()); load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)
     def _apply_status():
-        ids = _selection_ids()
-        if not ids: return
-        store.update_status(ids, status_set.get())
-        refresh_kpis(k1,k2,k3)
-        load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)
-    tb.Button(act, text="Set Status", command=_apply_status).pack(side=RIGHT, padx=4)
-    status_set.pack(side=RIGHT, padx=4)
-    tb.Button(act, text="Assign Owner", command=_apply_owner).pack(side=LEFT, padx=4)
-    owner_e.pack(side=LEFT, padx=4)
+        ids = _selection_ids(); if not ids: return
+        store.update_status(ids, status_set.get()); refresh_kpis(k1,k2,k3); load_table(tree, details, domain_cb.get() or None, status_cb.get() or None)
+    tb.Button(act, text="Set Status", command=_apply_status).pack(side=RIGHT, padx=4); status_set.pack(side=RIGHT, padx=4)
+    tb.Button(act, text="Assign Owner", command=_apply_owner).pack(side=LEFT, padx=4); owner_e.pack(side=LEFT, padx=4)
 
-    # Row select -> fill detail
     def on_sel(_):
         sel = tree.selection()
         if not sel: return
@@ -197,42 +161,40 @@ def main():
             f"Created: {r['created_at']}    Updated: {r['updated_at']}    SLA: {r['sla_due']}",
             "", "Description:", (r['description'] or '').strip()
         ]
-        details.configure(state="normal"); details.delete("1.0", END)
-        details.insert("1.0", "\n".join(lines)); details.configure(state="disabled")
+        details.configure(state="normal"); details.delete("1.0", END); details.insert("1.0", "\n".join(lines)); details.configure(state="disabled")
     tree.bind("<<TreeviewSelect>>", on_sel)
 
-    # Tags: zebra + status color
-    tree.tag_configure("even", background="#0f172a")
-    tree.tag_configure("odd",  background="#111827")
-    for st,(bg,fg) in STATUS_COLORS.items():
-        tree.tag_configure(f"st_{st}", background=bg, foreground=fg)
+    tree.tag_configure("even", background="#0f172a"); tree.tag_configure("odd", background="#111827")
+    for st,(bg,fg) in STATUS_COLORS.items(): tree.tag_configure(f"st_{st}", background=bg, foreground=fg)
 
-    # Load initial table
     load_table(tree, details)
 
-    # ===== Analytics tab =====
+    # Analytics (simple system line)
     ana = tb.Frame(nb); nb.add(ana, text="Analytics")
     sysline = tb.Label(ana, text=cpu_mem_line(), font=("Segoe UI", 11)); sysline.pack(anchor=W, padx=6, pady=6)
 
-    # ===== About tab =====
+    # Settings (no theme switcher)
+    stg = tb.Frame(nb); nb.add(stg, text="Settings")
+    tb.Button(stg, text="Open rules.yaml", command=lambda: os.startfile(str(REPO/"app"/"rules"/"default.yaml"))).pack(anchor=W, padx=6, pady=6)
+    tb.Button(stg, text="Open Logs", command=lambda: os.startfile(str(LOGS))).pack(anchor=W, padx=6, pady=6)
+
+    # About
     abo = tb.Frame(nb); nb.add(abo, text="About")
     tb.Label(abo, text="OPERION", font=("Segoe UI", 22, "bold")).pack(pady=4)
     tb.Label(abo, text="Automation. Corporate Intelligence. Solutions.", font=("Segoe UI", 11)).pack()
     tb.Label(abo, text=f"v{ver.get('version')}  ·  build {ver.get('build')}", font=("Segoe UI", 10)).pack(pady=4)
 
-    # Footer
     foot = tb.Frame(win); foot.pack(fill=X, side=BOTTOM)
     footline = tb.Label(foot, text=cpu_mem_line(), font=("Segoe UI", 9)); footline.pack(anchor=W, padx=8, pady=4)
     def tick():
         try: footline.configure(text=cpu_mem_line())
-        except: pass
+        except Exception: pass
         win.after(1500, tick)
     tick()
 
-    # Remember last tab (Savings / Analytics / About)
-    tabs = {"Savings":0,"Analytics":1,"About":2}
+    tabs = {"Savings":0,"Analytics":1,"Settings":2,"About":3}
     try: nb.select(tabs.get(SET.get("last_tab","Savings"),0))
-    except: pass
+    except Exception: pass
     def on_tab_changed(_):
         idx = nb.index(nb.select()); name = list(tabs.keys())[idx]
         SET["last_tab"] = name; save_settings(win)
