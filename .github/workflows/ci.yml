@@ -23,3 +23,11 @@ jobs:
         run: |
           Set-Location $env:GITHUB_WORKSPACE
           pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "ops/self_test.ps1" -CI
+
+      - name: Upload parity logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-logs
+          path: _logs\parity_*.log
+          if-no-files-found: ignore
