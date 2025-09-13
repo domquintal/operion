@@ -1,33 +1,37 @@
 ﻿name: Operion CI (Windows)
-
 on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ "main" ]
-
+  push: { branches: ["**"] }
+  pull_request: { branches: ["main"] }
 jobs:
   ci:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Setup PowerShell
         uses: PowerShell/PowerShell@v1
-        with:
-          pwsh-version: "7.4.x"
-
-      - name: Self-test (CI mode)
+        with: { pwsh-version: "7.4.x" }
+      - name: Lint
         shell: pwsh
         run: |
           Set-Location $env:GITHUB_WORKSPACE
-          pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "ops/self_test.ps1" -CI
-
-      - name: Upload parity logs
+          pwsh -File ops/lint.ps1
+      - name: Self-test
+        shell: pwsh
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+          pwsh -File ops/self_test.ps1 -CI
+      - name: Snapshot
+        shell: pwsh
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+          pwsh -File ops/snapshot.ps1
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: parity-logs
-          path: _logs\parity_*.log
+          name: operion-logs
+          path: |
+            _logs\parity_*.log
+            _logs\lint_*.txt
+            _logs\snapshot_*.txt
           if-no-files-found: ignore
