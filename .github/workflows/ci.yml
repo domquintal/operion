@@ -1,29 +1,25 @@
-﻿name: operion-ci
+﻿name: Operion CI (Windows)
+
 on:
   push:
-    branches: ["**"]
+    branches: [ "**" ]
   pull_request:
+    branches: [ "main" ]
+
 jobs:
-  windows-ci:
+  ci:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup PowerShell modules
-        shell: pwsh
-        run: |
-          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber
-      - name: Lint scripts
-        shell: pwsh
-        run: |
-          $errs = Invoke-ScriptAnalyzer -Path ./ -Recurse -Severity Error -EnableExit
-      - name: Package artifacts
-        shell: pwsh
-        run: |
-          $out = "artifacts"; New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Copy-Item app -Recurse -Destination "$out/app"
-          Copy-Item ops -Recurse -Destination "$out/ops"
-          Compress-Archive -Path "$out/*" -DestinationPath "operion_artifacts.zip" -Force
-      - uses: actions/upload-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v1
         with:
-          name: operion-artifacts
-          path: operion_artifacts.zip
+          pwsh-version: "7.4.x"
+
+      - name: Self-test (CI mode)
+        shell: pwsh
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+          pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "ops/self_test.ps1" -CI
