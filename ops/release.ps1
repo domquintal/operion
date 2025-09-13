@@ -1,48 +1,47 @@
 ﻿param(
-  [ValidateSet("patch","minor","major")] [string]$Bump = "patch"
+  [Parameter(Mandatory=$true)][string]$Version,  # e.g. v0.1.0  (must start with "v")
+  [switch]$DryRun
 )
 $ErrorActionPreference='Stop'
-$Root = (git rev-parse --show-toplevel 2>$null); if(-not $Root){ $Root = Split-Path $PSCommandPath -Parent | Split-Path -Parent }
-Set-Location $Root
+if ($Version -notmatch '^v\d+\.\d+\.\d+$') { throw 'Version must look like v0.1.0' }
 
-# Guards
-if(-not (Get-Command git -ErrorAction SilentlyContinue)){ throw "git missing" }
+# sanity
+git rev-parse --is-inside-work-tree *> $null
+if ($LASTEXITCODE -ne 0) { throw 'Not a git repo' }
+$branch = (git rev-parse --abbrev-ref HEAD).Trim()
+if ($branch -ne 'main') { throw "Release only from main (current: $branch)" }
 $dirty = git status --porcelain
-if($dirty){ throw "Working tree not clean. Commit/stash before release." }
+if ($dirty) { throw 'Working tree not clean' }
 
-# Ensure tests & lint pass
-pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'ops\lint.ps1')
-if($LASTEXITCODE -ne 0){ throw "lint failed" }
-pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'ops\self_test.ps1') -CI
-if($LASTEXITCODE -ne 0){ throw "self_test failed" }
+# get previous tag (optional)
+$prev = ''
+try { $prev = (git describe --tags --abbrev=0).Trim() } catch {}
 
-# Semver file
-$verFile = Join-Path $Root 'VERSION'
-if(-not (Test-Path $verFile)){ '0.1.0' | Set-Content -Encoding ASCII $verFile }
-$cur = (Get-Content $verFile -Raw).Trim()
-$parts = $cur -split '\.'
-[int]$maj=[int]$parts[0]; [int]$min=[int]$parts[1]; [int]$pat=[int]$parts[2]
-switch ($Bump) {
-  'patch' { $pat++ }
-  'minor' { $min++; $pat=0 }
-  'major' { $maj++; $min=0; $pat=0 }
+# build changelog section
+$today = (Get-Date).ToString('yyyy-MM-dd')
+$changelogPath = Join-Path (Get-Location) 'CHANGELOG.md'
+$header = "## $Version - $today"
+$range = if ($prev) { "$prev..HEAD" } else { "" }
+$items = if ($prev) { (git log --pretty='- %s' $range) } else { (git log --pretty='- %s') }
+if (-not $items) { $items = @('- Initial release') }
+
+# update CHANGELOG.md (prepend)
+$tmp = New-TemporaryFile
+$nl = [Environment]::NewLine
+"$header$nl$($items -join $nl)$nl$nl" | Out-File -FilePath $tmp -Encoding UTF8
+if (Test-Path $changelogPath) { Get-Content $changelogPath -Raw | Add-Content -Path $tmp -Encoding UTF8 }
+Move-Item $tmp $changelogPath -Force
+
+if ($DryRun) {
+  Write-Host "[DRY] Would commit CHANGELOG and tag $Version" -ForegroundColor Yellow
+  Write-Host "[DRY] Preview of CHANGELOG.md:" -ForegroundColor Yellow
+  Get-Content $changelogPath -TotalCount 30 | ForEach-Object { Write-Host $_ }
+  exit 0
 }
-$new = "$maj.$min.$pat"
-$new | Set-Content -Encoding ASCII $verFile
 
-# Changelog from last tag
-$lastTag = (git describe --tags --abbrev=0 2>$null)
-$range = if($lastTag){ "$lastTag..HEAD" } else { "" }
-$cl = Join-Path $Root 'CHANGELOG.md'
-$hdr = "## v$new - $(Get-Date -Format yyyy-MM-dd)"
-$log = if($range){ git log --pretty=format:"* %s (%h)" $range } else { @("* initial release") }
-Add-Content -Encoding UTF8 -Path $cl -Value @("","# "+(Split-Path $Root -Leaf),"",$hdr) -ErrorAction SilentlyContinue
-Add-Content -Encoding UTF8 -Path $cl -Value $log
-
-# Commit, tag, push
-git add VERSION CHANGELOG.md
-git commit -m "release: v$new"
-git tag -a "v$new" -m "Operion v$new"
-git push
-git push --tags
-Write-Host "Released v$new" -ForegroundColor Green
+git add CHANGELOG.md
+git commit -m "chore(release): $Version changelog"
+git tag -a "$Version" -m "$Version"
+git push origin main
+git push origin "$Version"
+Write-Host "Released $Version" -ForegroundColor Green

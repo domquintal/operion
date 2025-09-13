@@ -1,0 +1,32 @@
+﻿name: Operion Nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC every day
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v1
+        with:
+          pwsh-version: "7.4.x"
+
+      - name: Self-test (CI mode)
+        shell: pwsh
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+          pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "ops/self_test.ps1" -CI
+
+      - name: Upload parity logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-logs
+          path: _logs\parity_*.log
+          if-no-files-found: ignore
