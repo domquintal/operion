@@ -66,7 +66,7 @@ if (Test-Path `$VenvPy) { & `$VenvPy "`$Target" } else { & python "`$Target" }
       <Button x:Name="Parity" Content="Parity Check" Margin="6" IsEnabled="True"/>
       <Button x:Name="PushLocal" Content="Force Sync → Push Local" Margin="6" IsEnabled="False"/>
       <Button x:Name="ResetRemote" Content="Force Sync → Reset to Remote (Danger)" Margin="6" IsEnabled="False"/>
-      <Button x:Name="RepairShortcut" Content="Repair Desktop Shortcut" Margin="6" IsEnabled="True"/>
+
     </UniformGrid>
     <DockPanel Grid.Row="3">
       <TextBlock Text="Operion ©" Opacity="0.6" />
