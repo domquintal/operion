@@ -1,25 +1,48 @@
-﻿param([string]$Bump = 'patch') # major|minor|patch or explicit x.y.z
+﻿param(
+  [ValidateSet("patch","minor","major")] [string]$Bump = "patch"
+)
 $ErrorActionPreference='Stop'
-$root = (git rev-parse --show-toplevel 2>$null); if(-not $root){ throw "Not in a git repo" }
-Set-Location $root
-$verFile = Join-Path $root 'VERSION'
-if (Test-Path $verFile) { $v = (Get-Content $verFile -Raw).Trim() } else { $v = '0.0.0' }
+$Root = (git rev-parse --show-toplevel 2>$null); if(-not $Root){ $Root = Split-Path $PSCommandPath -Parent | Split-Path -Parent }
+Set-Location $Root
 
-function Bump($v,$kind){
-  if ($kind -match '^\d+\.\d+\.\d+$') { return $kind }
-  $p = $v -split '\.'; if ($p.Count -lt 3) { $p = @('0','0','0') }
-  $maj=[int]$p[0]; $min=[int]$p[1]; $pat=[int]$p[2]
-  switch($kind){
-    'major' { $maj++; $min=0; $pat=0 }
-    'minor' { $min++; $pat=0 }
-    default { $pat++ }
-  }
-  return "$maj.$min.$pat"
+# Guards
+if(-not (Get-Command git -ErrorAction SilentlyContinue)){ throw "git missing" }
+$dirty = git status --porcelain
+if($dirty){ throw "Working tree not clean. Commit/stash before release." }
+
+# Ensure tests & lint pass
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'ops\lint.ps1')
+if($LASTEXITCODE -ne 0){ throw "lint failed" }
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'ops\self_test.ps1') -CI
+if($LASTEXITCODE -ne 0){ throw "self_test failed" }
+
+# Semver file
+$verFile = Join-Path $Root 'VERSION'
+if(-not (Test-Path $verFile)){ '0.1.0' | Set-Content -Encoding ASCII $verFile }
+$cur = (Get-Content $verFile -Raw).Trim()
+$parts = $cur -split '\.'
+[int]$maj=[int]$parts[0]; [int]$min=[int]$parts[1]; [int]$pat=[int]$parts[2]
+switch ($Bump) {
+  'patch' { $pat++ }
+  'minor' { $min++; $pat=0 }
+  'major' { $maj++; $min=0; $pat=0 }
 }
-$new = Bump $v $Bump
-Set-Content -Encoding ASCII -Path $verFile -Value "$new`n"
-git add VERSION
-git commit -m "chore: release v$new" 2>$null | Out-Null
+$new = "$maj.$min.$pat"
+$new | Set-Content -Encoding ASCII $verFile
+
+# Changelog from last tag
+$lastTag = (git describe --tags --abbrev=0 2>$null)
+$range = if($lastTag){ "$lastTag..HEAD" } else { "" }
+$cl = Join-Path $Root 'CHANGELOG.md'
+$hdr = "## v$new - $(Get-Date -Format yyyy-MM-dd)"
+$log = if($range){ git log --pretty=format:"* %s (%h)" $range } else { @("* initial release") }
+Add-Content -Encoding UTF8 -Path $cl -Value @("","# "+(Split-Path $Root -Leaf),"",$hdr) -ErrorAction SilentlyContinue
+Add-Content -Encoding UTF8 -Path $cl -Value $log
+
+# Commit, tag, push
+git add VERSION CHANGELOG.md
+git commit -m "release: v$new"
 git tag -a "v$new" -m "Operion v$new"
-git push --follow-tags
-Write-Host "Released v$new"
+git push
+git push --tags
+Write-Host "Released v$new" -ForegroundColor Green
