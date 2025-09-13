@@ -1,31 +1,32 @@
 ﻿$ErrorActionPreference='Stop'
-$Root = (git rev-parse --show-toplevel 2>$null)
-if(-not $Root){ $Root = Split-Path $PSCommandPath -Parent | Split-Path -Parent }
-Set-Location $Root
-$stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$dirOut = Join-Path $Root '_logs\snapshots'
-New-Item -ItemType Directory -Force -Path $dirOut | Out-Null
-$out = Join-Path $dirOut ("snapshot_"+$stamp+".txt")
+$root = Split-Path $PSCommandPath -Parent | Split-Path -Parent
+$logRoot = Join-Path $root "_logs\snapshots"
+New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
+$stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$outDir = Join-Path $logRoot $stamp
+New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-$HEAD = (git rev-parse HEAD).Trim() 2>$null
-$BR   = (git rev-parse --abbrev-ref HEAD).Trim() 2>$null
-$CLEAN = [string]::IsNullOrWhiteSpace((git status --porcelain 2>$null))
+# tree (paths)
+Get-ChildItem -Recurse -File $root | ForEach-Object {
+  $rel = $_.FullName.Substring($root.Length+1)
+  $rel
+} | Sort-Object | Out-File -Encoding UTF8 (Join-Path $outDir 'tree.txt')
 
-$lines = @()
-$lines += "OPERION SNAPSHOT"
-$lines += ("Time: " + (Get-Date))
-$lines += ("Branch: " + $BR)
-$lines += ("HEAD: " + $HEAD)
-$lines += ("Clean: " + $CLEAN)
-$lines += "---- FILE HASHES (SHA1) ----"
+# hashes
+Get-ChildItem -Recurse -File $root | ForEach-Object {
+  $h = Get-FileHash $_.FullName -Algorithm SHA1
+  '{0}  {1}' -f $h.Hash, ($_.FullName.Substring($root.Length+1))
+} | Sort-Object | Out-File -Encoding UTF8 (Join-Path $outDir 'hashes.sha1')
 
-Get-ChildItem -Recurse -File |
-  Where-Object { $_.FullName -notmatch '\\\.git\\' } |
-  ForEach-Object {
-    $h = (Get-FileHash $_.FullName -Algorithm SHA1).Hash
-    $rel = $_.FullName.Substring($Root.Length+1)
-    $lines += ("{0}  {1}" -f $h,$rel)
-  }
+# git status
+$gitTxt = Join-Path $outDir 'git.txt'
+try {
+  Push-Location $root
+  "branch: $(git rev-parse --abbrev-ref HEAD)" | Out-File -Encoding UTF8 $gitTxt
+  "local:  $(git rev-parse HEAD)"             | Add-Content -Encoding UTF8 $gitTxt
+  try { "remote: $(git rev-parse origin/$(git rev-parse --abbrev-ref HEAD) 2>$null)" | Add-Content -Encoding UTF8 $gitTxt } catch {}
+  "`nstatus --porcelain:" | Add-Content -Encoding UTF8 $gitTxt
+  (git status --porcelain) | Add-Content -Encoding UTF8 $gitTxt
+} finally { Pop-Location }
 
-$lines | Out-File -FilePath $out -Encoding UTF8
-Write-Host "Snapshot written: $out" -ForegroundColor Cyan
+Write-Host "Snapshot saved -> $outDir" -ForegroundColor Green

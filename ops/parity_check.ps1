@@ -16,11 +16,10 @@ if (-not $branch) { throw "No current branch" }
 # Fetch and compute ahead/behind
 git fetch origin | Out-Null
 $local  = (git rev-parse HEAD).Trim()
-try { $remote = (git rev-parse origin/$branch).Trim() } catch { $remote = "" }
+try { $remote = (git rev-parse origin/$branch 2>$null).Trim() } catch { $remote = "" }
 
 # Divergence counts
-$counts = ""
-try { $counts = (git rev-list --left-right --count origin/$branch...HEAD) } catch {}
+$counts=""; if ($remote) { try { $counts=(git rev-list --left-right --count origin/$branch...HEAD) } catch {} }
 $behind = 0; $ahead = 0
 if ($counts) {
   $parts = $counts -split "\s+"
@@ -32,8 +31,7 @@ $porcelain = git status --porcelain
 $clean = [string]::IsNullOrWhiteSpace($porcelain)
 
 # What differs vs origin
-$nameStatus = ""
-try { $nameStatus = git diff --name-status origin/$branch...HEAD } catch {}
+$nameStatus=""; if ($remote) { try { $nameStatus = git diff --name-status origin/$branch...HEAD } catch {} }
 
 # Untracked (not ignored)
 $untracked = git ls-files --others --exclude-standard
@@ -71,3 +69,4 @@ Write-Host "Parity log:" $logPath -ForegroundColor Cyan
 # Also print short summary to console
 "
 Summary: Branch=$branch Local=$local Remote=$remote Ahead=$ahead Behind=$behind Clean=$clean"
+
