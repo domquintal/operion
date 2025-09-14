@@ -1,0 +1,12 @@
+﻿version: 1
+pack: accounting.approvals
+rules:
+  - id: inv.amount.limit
+    when: invoice.amount > 1000
+    require:
+      - approval.role: FinanceManager
+      - approval.count: 1
+  - id: vendor.blocklist
+    deny_if: invoice.vendor in ${ENV:VENDOR_BLOCKLIST}
+  - id: payment.method.allowed
+    allow_if: invoice.method in ["ACH","Wire"]

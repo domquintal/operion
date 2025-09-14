@@ -1,0 +1,12 @@
+﻿version: 1
+pack: hr.onboarding
+rules:
+  - id: hr.email.domain.allowed
+    allow_if: newhire.email.endswith("@example.com")
+  - id: hr.hardware.request.approval
+    when: newhire.role in ["Engineer","Analyst"]
+    require:
+      - approval.role: ITManager
+      - approval.count: 1
+  - id: hr.slack.workspace.default
+    allow_if: "slack:join" in newhire.provisions
