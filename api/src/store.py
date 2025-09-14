@@ -18,8 +18,7 @@ def _write(p, obj):
     os.replace(tmp, p)
 
 def list_runs():
-    runs = _read(RUNS_FILE, [])
-    return runs
+    return _read(RUNS_FILE, [])
 
 def add_sample_runs_if_empty():
     runs = _read(RUNS_FILE, [])
@@ -31,6 +30,12 @@ def add_sample_runs_if_empty():
             {"id":"r-003","flow":"data.sync","status":"failed","ts":now-600,"items":120,"error":"missing vendor id"},
         ]
         _write(RUNS_FILE, seed)
+
+def append_run(run):
+    runs = _read(RUNS_FILE, [])
+    runs.append(run)
+    _write(RUNS_FILE, runs)
+    return run
 
 def upsert_heartbeat(agent_id:str, status:str="ok"):
     hb = _read(HEARTBEATS_FILE, {})

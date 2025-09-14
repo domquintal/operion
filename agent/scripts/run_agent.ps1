@@ -1,51 +1,18 @@
 ﻿param([switch]$Debug)
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference="Stop"
 $root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)  # ...\agent
-$repo = Split-Path -Parent $root                                # repo root
+$repo = Split-Path -Parent $root
 $logs = Join-Path $repo "_logs"; New-Item -ItemType Directory -Force -Path $logs | Out-Null
-
-# Log rotation
-Get-ChildItem $logs -Filter "agent_run_*.log" -ErrorAction SilentlyContinue |
-  Sort-Object LastWriteTime -Descending | Select-Object -Skip 10 | Remove-Item -Force -ErrorAction SilentlyContinue
-$stamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
-$logFile = Join-Path $logs "agent_run_$stamp.log"
-Start-Transcript -Path $logFile -Force | Out-Null
-
-# Python & venv
-$py = (Get-Command python -ErrorAction SilentlyContinue)?.Source
-if (-not $py) { $py = (Get-Command py -ErrorAction SilentlyContinue)?.Source }
-if (-not $py) { throw "Python not found on PATH. Install Python 3.11+." }
-$venvPath = Join-Path $root ".venv"
-if (-not (Test-Path $venvPath)) { & $py -m venv $venvPath }
-$pip = Join-Path $venvPath "Scripts\pip.exe"
-$python = Join-Path $venvPath "Scripts\python.exe"
-
-# Install requirements if present
-$reqs = @(
-  (Join-Path $root "src\requirements.txt"),
-  (Join-Path $repo "api\requirements.txt")
-) | Where-Object { Test-Path $_ }
-foreach ($r in $reqs) { & $pip install -r $r }
-
-# Start heartbeat in background
-$hb = Start-Job -ScriptBlock {
-  param($p) & $p
-} -ArgumentList (Join-Path $root "scripts\heartbeat.ps1") | Out-Null
-
-# Pick entry
-$uiDesktop = Join-Path $root "src\ui_desktop.py"
-$mainTTK   = Join-Path $root "src\main_ttk.py"
-$mainPy    = Join-Path $root "src\main.py"
-if     (Test-Path $uiDesktop) { $entry = $uiDesktop }
-elseif (Test-Path $mainTTK)   { $entry = $mainTTK }
-elseif (Test-Path $mainPy)    { $entry = $mainPy }
-else   { $entry = $null }
-if (-not $entry) { Write-Warning "No desktop UI or Python entrypoint found in agent\src."; Stop-Transcript | Out-Null; exit 0 }
-# Launch agent app
+Get-ChildItem $logs -Filter "agent_run_*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -Skip 10 | Remove-Item -Force -ErrorAction SilentlyContinue
+$stamp=(Get-Date).ToString("yyyyMMdd_HHmmss"); $logFile=Join-Path $logs "agent_run_$stamp.log"; Start-Transcript -Path $logFile -Force | Out-Null
+$py = (Get-Command python -ErrorAction SilentlyContinue)?.Source; if (-not $py) { $py = (Get-Command py -ErrorAction SilentlyContinue)?.Source }
+$venvPath = Join-Path $root ".venv"; if (-not (Test-Path $venvPath)) { & $py -m venv $venvPath }
+$pip=Join-Path $venvPath "Scripts\pip.exe"; $python=Join-Path $venvPath "Scripts\python.exe"
+& $pip install -r (Join-Path $root "src\requirements.txt")
+& $pip install -r (Join-Path $repo "api\requirements.txt")
+$null = Start-Job -ScriptBlock { param($p) & $p } -ArgumentList (Join-Path $root "scripts\heartbeat.ps1")
+$uiDesktop = Join-Path $root "src\ui_desktop.py"; if (-not (Test-Path $uiDesktop)) { Write-Warning "ui_desktop.py missing"; Stop-Transcript | Out-Null; exit 0 }
 $args = @(); if ($Debug) { $args += "--debug" }
-& $python $entry @args
-
-# Cleanup
+& $python $uiDesktop @args
 Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue
 Stop-Transcript | Out-Null
-

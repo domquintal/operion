@@ -1,0 +1,7 @@
+﻿pywebview>=4.4
+
+watchdog
+
+pystray
+
+pillow

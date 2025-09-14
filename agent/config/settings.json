@@ -1,0 +1,8 @@
+﻿{
+  "apiUrl": "http://localhost:8000",
+  "autoStartWatcher": true,
+  "watch": {
+    "invoices": "agent/data/invoices/in",
+    "hr": "agent/data/hr/in"
+  }
+}

@@ -1,71 +1,87 @@
-﻿<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Operion Console</title>
-    <!-- Tailwind CDN (dev fallback) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      html,body,#app { height: 100%; }
-      .card { border-radius: 1rem; box-shadow: 0 10px 24px rgba(0,0,0,.12); }
-    </style>
-  </head>
-  <body class="bg-slate-950 text-slate-100 antialiased">
-    <div id="app" class="p-6">
-      <div class="max-w-6xl mx-auto grid gap-6">
-        <header class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40"></div>
-            <h1 class="text-xl font-semibold tracking-tight">Operion Console</h1>
-          </div>
-          <nav class="text-sm text-slate-300">R0 • MVP pilot</nav>
-        </header>
-
-        <main class="grid md:grid-cols-3 gap-6">
-          <section class="card bg-slate-900/60 p-5 border border-slate-800">
-            <h2 class="font-medium mb-2">Today’s Status</h2>
-            <ul class="text-sm text-slate-300 leading-7">
-              <li>API Health: <span id="apiHealth" class="font-semibold">checking…</span></li>
-              <li>Runs (24h): <span id="runs24" class="font-semibold">—</span></li>
-              <li>Failures (24h): <span id="fails24" class="font-semibold">—</span></li>
-            </ul>
-          </section>
-
-          <section class="card bg-slate-900/60 p-5 border border-slate-800 md:col-span-2">
-            <h2 class="font-medium mb-2">Recent Runs</h2>
-            <div id="runs" class="text-sm text-slate-300">No data yet.</div>
-          </section>
-        </main>
-
-        <section class="card bg-slate-900/60 p-5 border border-slate-800">
-          <h2 class="font-medium mb-2">Quick Actions</h2>
-          <div class="flex flex-wrap gap-2">
-            <button id="btnHealth" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Check API</button>
-            <a href="/policies" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Policies</a>
-            <a href="/connectors" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Connectors</a>
-          </div>
-        </section>
-
-        <footer class="text-xs text-slate-500 text-center py-4">© Operion</footer>
+﻿<!doctype html><html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Operion Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>html,body,#app{height:100%}.card{border-radius:1rem;box-shadow:0 10px 24px rgba(0,0,0,.12)}</style>
+</head><body class="bg-slate-950 text-slate-100 antialiased">
+<div id="app" class="p-6">
+  <div class="max-w-6xl mx-auto grid gap-6">
+    <header class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40"></div>
+        <h1 class="text-xl font-semibold tracking-tight">Operion</h1>
       </div>
-    </div>
+      <nav class="text-sm text-slate-300">v1 • desktop</nav>
+    </header>
 
-    <script type="module">
-      async function checkHealth() {
-        const el = document.getElementById('apiHealth')
-        try {
-          const res = await fetch('http://localhost:8000/health', { cache: 'no-store' })
-          const j = await res.json()
-          el.textContent = j.status || 'ok'
-          el.classList.add('text-emerald-400')
-        } catch (e) {
-          el.textContent = 'down'
-          el.classList.add('text-rose-400')
-        }
-      }
-      document.getElementById('btnHealth').addEventListener('click', checkHealth)
-      checkHealth()
-    </script>
-  </body>
-</html>
+    <main class="grid md:grid-cols-3 gap-6">
+      <section class="card bg-slate-900/60 p-5 border border-slate-800">
+        <h2 class="font-medium mb-2">Status</h2>
+        <ul class="text-sm text-slate-300 leading-7">
+          <li>API Health: <span id="apiHealth" class="font-semibold">checking…</span></li>
+          <li>Runs: <span id="runsCount" class="font-semibold">—</span></li>
+          <li>Last agent heartbeat: <span id="hb" class="font-semibold">—</span></li>
+        </ul>
+        <div class="mt-3 flex gap-2">
+          <button id="btnHealth" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Check API</button>
+          <button id="btnRefresh" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Refresh</button>
+        </div>
+      </section>
+
+      <section class="card bg-slate-900/60 p-5 border border-slate-800 md:col-span-2">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-medium">Run Flows</h2>
+          <div class="text-xs text-slate-400">CSV in <code>agent/data/**/in</code>, outputs → <code>processed/</code></div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button data-flow="finance.reconcile" class="flow px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm">Invoice Reconcile</button>
+          <button data-flow="hr.onboarding" class="flow px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm">HR Onboarding</button>
+          <button data-flow="data.sync" class="flow px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm">Data Sync</button>
+        </div>
+        <div id="runMsg" class="text-xs text-slate-400 mt-2"></div>
+      </section>
+    </main>
+
+    <section class="card bg-slate-900/60 p-5 border border-slate-800">
+      <h2 class="font-medium mb-2">Recent Runs</h2>
+      <div id="runs" class="text-sm text-slate-300">—</div>
+    </section>
+
+    <section class="card bg-slate-900/60 p-5 border border-slate-800">
+      <h2 class="font-medium mb-2">Tips</h2>
+      <ul class="text-sm text-slate-300 list-disc pl-6">
+        <li>Invoices: put CSVs in <code>agent/data/invoices/in/</code>.</li>
+        <li>HR: put CSVs in <code>agent/data/hr/in/</code> with <code>name,email,role</code>.</li>
+        <li>Edit rules in <code>policies/*.yaml</code>. For vendor blocklist: <code>setx VENDOR_BLOCKLIST "FraudCo,BadVendor LLC"</code> then restart API.</li>
+      </ul>
+    </section>
+
+    <footer class="text-xs text-slate-500 text-center py-4">© Operion</footer>
+  </div>
+</div>
+
+<script type="module">
+const H = 'http://localhost:8000'
+const elH = (id) => document.getElementById(id)
+async function health(){ try{const r=await fetch(H+'/health',{cache:'no-store'}); const j=await r.json(); elH('apiHealth').textContent=j.status||'ok'; elH('apiHealth').classList.add('text-emerald-400')}catch{elH('apiHealth').textContent='down'; elH('apiHealth').classList.add('text-rose-400')}}
+async function runs(){
+  try{const r=await fetch(H+'/runs',{cache:'no-store'}); const a=await r.json();
+    elH('runsCount').textContent=a.length;
+    elH('runs').innerHTML=a.slice(-12).reverse().map(x=>{const d=new Date(x.ts*1000).toLocaleString(); return `<div class="py-1"><span class="font-semibold">${x.flow}</span> — ${x.status} • ${d} • items: ${x.items??"?"}</div>`}).join('')||'—';
+  }catch{elH('runs').textContent='error';}
+}
+async function heartbeats(){
+  try{const r=await fetch(H+'/heartbeats',{cache:'no-store'}); const j=await r.json(); const ids=Object.keys(j); if(ids.length){const last=Math.max(...Object.values(j).map(x=>x.ts)); elH('hb').textContent=new Date(last*1000).toLocaleTimeString()} else {elH('hb').textContent='—'}}
+  catch{elH('hb').textContent='—'}
+}
+async function run(flow,btn){
+  const t=btn.textContent; btn.disabled=true; btn.textContent='Running…';
+  try{const r=await fetch(H+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({flow})}); const j=await r.json(); elH('runMsg').textContent=`${flow} ok: ${j.summary?.accepted ?? j.summary?.total ?? 0} items`; await runs();}
+  catch{elH('runMsg').textContent=`${flow} failed (is API up?)`}
+  finally{btn.disabled=false; btn.textContent=t}
+}
+elH('btnHealth').addEventListener('click',health); elH('btnRefresh').addEventListener('click',()=>{health();runs();heartbeats()})
+for (const b of document.querySelectorAll('.flow')) b.addEventListener('click',()=>run(b.dataset.flow,b))
+health(); runs(); heartbeats();
+</script>
+</body></html>

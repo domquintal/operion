@@ -1,0 +1,6 @@
+﻿invoice_id,vendor,amount,method,desc
+INV-1001,Acme Corp,450,ACH,Monthly subscription
+INV-1002,BadVendor LLC,1200,Wire,Hardware purchase
+INV-1003,Fabrikam,75,CreditCard,Snacks
+INV-1004,FraudCo,300,ACH,Consulting
+INV-1005,Northwind,2200,Wire,Equipment
