@@ -15,3 +15,8 @@ ops/z_parked/
 
 
 
+
+# PyInstaller artifacts
+build/
+dist/
+*.spec

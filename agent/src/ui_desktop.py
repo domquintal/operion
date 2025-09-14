@@ -25,7 +25,8 @@ def main():
         print("pywebview not installed. Install with: pip install pywebview")
         sys.exit(1)
 
-    repo = Path(__file__).resolve().parents[2]  # .../operion
+    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    repo = base_dir  # .../operion
     console_index = repo / "console" / "index.html"
     # If console/index.html exists, render it; otherwise render a minimal inline page
     if console_index.exists():
@@ -74,3 +75,4 @@ check();
 
 if __name__ == "__main__":
     main()
+
