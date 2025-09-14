@@ -1,0 +1,71 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Operion Console</title>
+    <!-- Tailwind CDN (dev fallback) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      html,body,#app { height: 100%; }
+      .card { border-radius: 1rem; box-shadow: 0 10px 24px rgba(0,0,0,.12); }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased">
+    <div id="app" class="p-6">
+      <div class="max-w-6xl mx-auto grid gap-6">
+        <header class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40"></div>
+            <h1 class="text-xl font-semibold tracking-tight">Operion Console</h1>
+          </div>
+          <nav class="text-sm text-slate-300">R0 • MVP pilot</nav>
+        </header>
+
+        <main class="grid md:grid-cols-3 gap-6">
+          <section class="card bg-slate-900/60 p-5 border border-slate-800">
+            <h2 class="font-medium mb-2">Today’s Status</h2>
+            <ul class="text-sm text-slate-300 leading-7">
+              <li>API Health: <span id="apiHealth" class="font-semibold">checking…</span></li>
+              <li>Runs (24h): <span id="runs24" class="font-semibold">—</span></li>
+              <li>Failures (24h): <span id="fails24" class="font-semibold">—</span></li>
+            </ul>
+          </section>
+
+          <section class="card bg-slate-900/60 p-5 border border-slate-800 md:col-span-2">
+            <h2 class="font-medium mb-2">Recent Runs</h2>
+            <div id="runs" class="text-sm text-slate-300">No data yet.</div>
+          </section>
+        </main>
+
+        <section class="card bg-slate-900/60 p-5 border border-slate-800">
+          <h2 class="font-medium mb-2">Quick Actions</h2>
+          <div class="flex flex-wrap gap-2">
+            <button id="btnHealth" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Check API</button>
+            <a href="/policies" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Policies</a>
+            <a href="/connectors" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700">Connectors</a>
+          </div>
+        </section>
+
+        <footer class="text-xs text-slate-500 text-center py-4">© Operion</footer>
+      </div>
+    </div>
+
+    <script type="module">
+      async function checkHealth() {
+        const el = document.getElementById('apiHealth')
+        try {
+          const res = await fetch('http://localhost:8000/health', { cache: 'no-store' })
+          const j = await res.json()
+          el.textContent = j.status || 'ok'
+          el.classList.add('text-emerald-400')
+        } catch (e) {
+          el.textContent = 'down'
+          el.classList.add('text-rose-400')
+        }
+      }
+      document.getElementById('btnHealth').addEventListener('click', checkHealth)
+      checkHealth()
+    </script>
+  </body>
+</html>
