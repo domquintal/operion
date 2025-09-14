@@ -29,3 +29,22 @@ The script creates a **venv** and installs `requirements.txt`.
 - **Open Outputs** quick access.
 
 ---
+
+### End-to-end smoke (R0c)
+
+1) API:
+\\\powershell
+.\api\scripts\run_api.ps1
+# open http://localhost:8000/health
+# optional: http://localhost:8000/heartbeats  http://localhost:8000/runs
+\\\
+
+2) Agent (starts heartbeat job):
+\\\powershell
+.\agent\scripts\run_agent.ps1
+\\\
+
+3) Console:
+- Open \console/index.html\
+- Press **Check API**; 'Today’s Status' should turn green.
+- Recent Runs should list 2–3 sample items. Heartbeats appear at /heartbeats.
