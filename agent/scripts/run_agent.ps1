@@ -33,11 +33,14 @@ $hb = Start-Job -ScriptBlock {
 } -ArgumentList (Join-Path $root "scripts\heartbeat.ps1") | Out-Null
 
 # Pick entry
-$mainTTK = Join-Path $root "src\main_ttk.py"
-$mainPy  = Join-Path $root "src\main.py"
-$entry = if (Test-Path $mainTTK) { $mainTTK } elseif (Test-Path $mainPy) { $mainPy } else { $null }
-if (-not $entry) { Write-Warning "No main_ttk.py or main.py found in agent\src."; Stop-Transcript | Out-Null; exit 0 }
-
+$uiDesktop = Join-Path $root "src\ui_desktop.py"
+$mainTTK   = Join-Path $root "src\main_ttk.py"
+$mainPy    = Join-Path $root "src\main.py"
+if     (Test-Path $uiDesktop) { $entry = $uiDesktop }
+elseif (Test-Path $mainTTK)   { $entry = $mainTTK }
+elseif (Test-Path $mainPy)    { $entry = $mainPy }
+else   { $entry = $null }
+if (-not $entry) { Write-Warning "No desktop UI or Python entrypoint found in agent\src."; Stop-Transcript | Out-Null; exit 0 }
 # Launch agent app
 $args = @(); if ($Debug) { $args += "--debug" }
 & $python $entry @args
@@ -45,3 +48,4 @@ $args = @(); if ($Debug) { $args += "--debug" }
 # Cleanup
 Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue
 Stop-Transcript | Out-Null
+

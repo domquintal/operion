@@ -48,3 +48,10 @@ The script creates a **venv** and installs `requirements.txt`.
 - Open \console/index.html\
 - Press **Check API**; 'Today’s Status' should turn green.
 - Recent Runs should list 2–3 sample items. Heartbeats appear at /heartbeats.
+
+### Desktop App (no browser)
+
+- Double-click the **Operion** shortcut on your Desktop.
+- This launches a native window (pywebview). No browser required.
+- If the API is running (.\api\scripts\run_api.ps1), the app can talk to it at http://localhost:8000.
+
