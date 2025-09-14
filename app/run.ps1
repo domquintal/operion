@@ -90,7 +90,7 @@ function Start-PS1([string]$path,[string[]]$args=@()){
 }
 
 [xml]$x = @"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Operion App" Height="520" Width="780" WindowStartupLocation="CenterScreen"
         Background="#0f1115" Foreground="#eaeaea" FontFamily="Segoe UI" FontSize="14">
   <Grid Margin="16">
@@ -191,3 +191,4 @@ $ResetBtn.Add_Click({
 $ExitBtn.Add_Click({ $w.Close() })
 
 [void]$w.ShowDialog()
+
